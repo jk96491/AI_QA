@@ -85,6 +85,13 @@ Unity 에이전트에게 지시할 때는 사용자가 직접 전달한다 (학�
 2. 새 빌드 측정 요청이 오면: `venv\Scripts\python.exe run/run_measure_build.py` → 결과를 3장 표에 한 줄 추가.
 3. 사이클 확인: `venv\Scripts\python.exe run/run_full_cycle.py` (맨 위 `GAME_CMD = UNITY`), 화면은 `run/run_full_cycle_view.py`.
 4. 플레이 모드 확인: `venv\Scripts\python.exe -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]` (PyCharm `13 플레이 모드 검사`).
+5. **LLM 플레이 실행 (다음에 이어서 할 일, 2026-11-23 세션 끝)** — 사용자가 1~3 준비 후 알려 주면 4 를 실행하고 결과 정리:
+   1. Python 3.12 설치: `winget install Python.Python.3.12` (또는 Anaconda `conda create -n play_agent python=3.12`)
+   2. `py -3.12 -m venv venv_play` → `venv_play\Scripts\python.exe -m pip install anthropic numpy` (`venv_play/` 는 .gitignore 에 있음)
+   3. console.anthropic.com 에서 API 키 → `setx ANTHROPIC_API_KEY "sk-ant-..."` (새 터미널·PyCharm 재시작). 키는 채팅에 붙이지 않는다
+   4. 창 모드 게임 `unity_game\Build\QaArena.exe -qaPlay -qaPort 7800 -qaPlaySpeed 4` + `venv_play\Scripts\python.exe -m play_agent play --game 127.0.0.1:7800 --loadout reports/20261123-003306 --effort low --max-actions 40` (첫 실행은 짧게) → `reports/play-<시각>/run.json`·`play_log.json`
+   - 첫 실제 API 실행이라 `pilot.py` 가 SDK 와 어긋나면(예: `output_config`·`cache_control` 인자, strict 스키마 400) 그 자리에서 고친다. 가짜 API 테스트만 통과한 상태.
+6. 사용자에게 남은 것: 2장 결정 대기(잘못된 `trigger_response`), `unity_game/PLAY_PROTOCOL_0.2_FOLLOWUP.md` Unity 에이전트에 전달, 늑대왕 마법사 0% 조사 여부, 포트폴리오 문서.
 
 ## 6. 미구현·알려진 한계
 
