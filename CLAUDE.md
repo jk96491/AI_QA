@@ -3,6 +3,7 @@
 원문 제안서 `밸런스 QA를 위한 BT 파라미터 최적화 프로세스.pdf`의 주장을 검증한다.
 **새 세션은 `docs/STATUS.md`(현재 상태·결정 대기·빌드별 측정 이력·다음 할 일)부터 읽는다.** 작업이 끝나면 그 문서를 갱신한다.
 설계 `시뮬레이션_프로토타입_설계.md`, 구조 `docs/ARCHITECTURE.md`, **게임 연동 계약 `docs/PROTOCOL.md`**.
+플레이 모드(LLM 비전투 + 학습 BT 전투) 계약 `docs/PLAY_PROTOCOL.md` v0.2 (밸런스 계약과 별개), 클라이언트 `play_agent/`.
 
 ## 구조 (가장 중요)
 
@@ -11,6 +12,7 @@
 | `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터·TCP 프로토콜 서버. 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
 | `balance_qa/` | **학습 플랫폼**: 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim` import |
 | `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.2) | — |
+| `play_agent/` | **플레이 모드 클라이언트**: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot(Claude API)·check-play. 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch` import |
 | `unity_game/` | **실제 테스트 게임 (Unity 프로젝트, 다른 에이전트가 제작 중)**. 제작 규칙 `unity_game/AGENT_GUIDE.md` | 학습 쪽 코드에서 import·경로 의존 금지 (`--game` / `--game-cmd` 로만 연결) |
 
 - `game_sim/` 은 Unity 게임이 생긴 뒤에도 **참조 구현 + 테스트용 가짜 게임**으로 유지한다 (사용자 결정). 지우지 않는다.
@@ -29,6 +31,7 @@
   - torch 1.8 API: `torch.inference_mode` 없음 → `torch.no_grad()`. `torch.linalg.eigh/norm`, `torch.outer` 사용 가능.
 - **학습 부분은 PyTorch CPU**: `balance_qa/optim/*`, `balance_qa/policy/mlp.py`, `balance_qa/rl/*` (IMPALA). 장치·dtype 은 `balance_qa/backend.py` (DEVICE=cpu, 최적화기 float64, 정책 float32). `.cuda()` 금지.
 - 게임 쪽 BT·시뮬레이터는 numpy/순수 파이썬.
+- 예외: `play_agent/pilot.py` 의 LLM 실행만 anthropic SDK 1.x(Python ≥3.10) 별도 venv. 나머지 `play_agent` 는 3.8 + numpy 로 돈다 (anthropic 은 실행 시점에만 import).
 - 정의서·데이터는 **JSON**.
 - Windows 콘솔 한글: 진입점에서 `sys.stdout.reconfigure(encoding="utf-8")` (cli, game_sim `__main__`, experiments/common 에 있음).
 
@@ -46,6 +49,8 @@ python -m balance_qa --workers 4 policy   --cls warrior --persona stable --budge
 python -m balance_qa --workers 8 impala   --cls warrior --persona stable --budget 8000   # IMPALA, 액터=게임 인스턴스
 python -m balance_qa --game 127.0.0.1:7777,127.0.0.1:7778 optimize ...       # 이미 떠 있는 게임(Unity)
 python -m balance_qa --workers 8 --game-cmd "Game.exe -batchmode -qaPort {port}" optimize ...
+python -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]  # 플레이 모드 적합성 (LLM 없음)
+python -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run>   # LLM 플레이 — Python ≥3.10 + anthropic venv 전용
 python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game ...]       # E0~E7
 ```
 

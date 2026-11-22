@@ -18,7 +18,10 @@
   <ItemGroup>
     <Compile Include="$(QaRoot)Assets\**\*.cs" />
     <Reference Include="$(QaRoot)Library\PackageCache\com.unity.nuget.newtonsoft-json@*\Runtime\Newtonsoft.Json.dll" />
-    <Reference Include="UnityEngine"><HintPath>$(UnityManaged)\UnityEngine.dll</HintPath></Reference>
-    <Reference Include="UnityEditor"><HintPath>$(UnityManaged)\UnityEditor.dll</HintPath></Reference>
+    <!-- 모듈 어셈블리 (uGUI 패키지 DLL 이 모듈을 참조하므로 단일 UnityEngine.dll 대신 모듈별로) -->
+    <Reference Include="$(UnityManaged)\UnityEngine\UnityEngine*.dll;$(UnityManaged)\UnityEngine\UnityEditor*.dll" />
+    <!-- uGUI·TextMeshPro (com.unity.ugui 패키지를 에디터가 컴파일한 Library/ScriptAssemblies) -->
+    <Reference Include="$(QaRoot)Library\ScriptAssemblies\UnityEngine.UI.dll" />
+    <Reference Include="$(QaRoot)Library\ScriptAssemblies\Unity.TextMeshPro.dll" />
   </ItemGroup>
 </Project>

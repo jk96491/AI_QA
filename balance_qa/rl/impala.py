@@ -101,7 +101,8 @@ class ImpalaTrainer:
 
     def eval_source(self) -> ActorParamSource:
         """평가용: 결정론적(Beta 평균) 정책."""
-        return ActorParamSource(self.model, self.space, self.fixed, self.thresholds, rng=None, record=False)
+        return ActorParamSource(self.model, self.space, self.fixed, self.thresholds, rng=None, record=False,
+                                state_features=self.state_features)
 
     def train(self) -> ImpalaResult:
         cfg = self.cfg

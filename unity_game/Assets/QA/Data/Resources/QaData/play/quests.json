@@ -1,0 +1,20 @@
+{
+  "_note": "튜토리얼 퀘스트. objective kind: talk(target 과 대화 시작) / collect(item 보유 count) / quickslot(item 을 퀵슬롯에 등록) / buy(수락 후 item 구매 count) / kill(target 적 전투 승리) / turn_in(대화 효과 complete_quest 로 반납). auto_complete = 목표를 다 채우면 바로 완료. next = 완료 시 자동 수락",
+  "quests": [
+    {"id": "q_tut_01", "title": "촌장을 찾아가자", "start_active": true, "auto_complete": true,
+     "objectives": [{"id": "o1", "kind": "talk", "target": "npc_elder", "text": "촌장에게 말 걸기"}]},
+    {"id": "q_tut_02", "title": "숲의 약초", "giver": "npc_elder", "requires": ["q_tut_01"], "consume_items": true, "next": "q_tut_03",
+     "objectives": [{"id": "o1", "kind": "collect", "item": "herb", "count": 3, "text": "약초 3개 채집", "hint_targets": ["herb_01", "herb_02", "herb_03", "herb_04"]},
+                    {"id": "o2", "kind": "turn_in", "target": "npc_elder", "text": "촌장에게 돌아가기"}],
+     "rewards": {"gold": 30, "items": [{"id": "potion_small", "count": 2}]}},
+    {"id": "q_tut_03", "title": "물약 준비", "giver": "npc_elder", "requires": ["q_tut_02"], "auto_complete": true, "next": "q_tut_04",
+     "objectives": [{"id": "o1", "kind": "quickslot", "item": "potion_small", "text": "인벤토리에서 작은 물약을 퀵슬롯에 등록"}]},
+    {"id": "q_tut_04", "title": "상인에게서 물약 사기", "giver": "npc_merchant", "requires": ["q_tut_03"], "auto_complete": true, "next": "q_tut_05",
+     "objectives": [{"id": "o1", "kind": "buy", "item": "potion_small", "count": 2, "text": "상인에게 작은 물약 2개 구매", "hint_targets": ["npc_merchant"]}],
+     "rewards": {"gold": 20}},
+    {"id": "q_tut_05", "title": "숲의 늑대왕", "giver": "npc_guard", "requires": ["q_tut_04"],
+     "objectives": [{"id": "o1", "kind": "kill", "target": "wolf_king", "text": "숲의 늑대왕 처치"},
+                    {"id": "o2", "kind": "turn_in", "target": "npc_guard", "text": "경비병에게 보고"}],
+     "rewards": {"gold": 50}}
+  ]
+}

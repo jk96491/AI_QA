@@ -1,0 +1,10 @@
+{
+  "_note": "아이템·상점. usable = use_item·퀵슬롯 등록 가능. 상점 구매 버튼: potion_small 은 항상 눌리고 골드 부족 시 실패 메시지, 나머지는 골드 부족 시 비활성 (의도적 함정 2종)",
+  "items": [
+    {"id": "herb", "label": "약초", "description": "숲에서 자라는 약초. 촌장이 찾고 있다."},
+    {"id": "potion_small", "label": "작은 물약", "description": "체력을 30% 회복한다.", "price": 25, "usable": true, "heal_ratio": 0.3},
+    {"id": "potion_large", "label": "큰 물약", "description": "체력을 70% 회복한다.", "price": 80, "usable": true, "heal_ratio": 0.7},
+    {"id": "wolf_fang", "label": "늑대왕의 송곳니", "description": "늑대왕을 쓰러뜨린 증표."}
+  ],
+  "shops": {"npc_merchant": ["potion_small", "potion_large"]}
+}

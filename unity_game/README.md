@@ -65,6 +65,64 @@ Play 하면 (서버 설정과 무관하게) 전투가 화면에 그려진다. �
 venv\Scripts\python.exe -m balance_qa --workers 4 --game-cmd "unity_game/Build/QaArena.exe -batchmode -nographics -qaPort {port}" optimize --cls warrior --persona stable --budget 600
 ```
 
+## 플레이 모드 (P1~P4 완료, 0.6.2) — LLM 비전투 플레이 + 학습된 BT 전투
+
+완료 보고·계약 반영 요청: `PLAY_MODE_REPORT.md`.
+
+계약 `../docs/PLAY_PROTOCOL.md` v0.1 (초안), 작업 목록 `PLAY_MODE_REQUEST.md`. **`-qaPlay` 가 없으면 아무것도 바뀌지 않는다** (밸런스 모드 T1: check-game 15/15, 고정 seed 21판 결과 바이트 동일, 경계 사례 37/37).
+
+| 명령 | 비고 |
+|---|---|
+| `Build/QaArena.exe -qaPlay -qaPort 7800` | 창 모드 (1280×720). 행동 진행이 실시간 1배 |
+| `... -qaPlaySpeed 16` | 관람 배속 (결과는 dt·틱 수로만 정해져 배속과 무관) |
+| `... -qaPlayCombatSpeed 8` | 전투 장면 배속만 따로 (생략 = `-qaPlaySpeed`) |
+| `... -qaPlayOmniscient` | 디버그: 시야 밖·닫힌 창까지 관찰 (`"hidden": true` 표시) |
+| `... -qaPlaySeed 7` | `reset.seed` 생략 시 기본값 |
+| `Build/QaArena.exe -batchmode -nographics -qaPlay -qaPort 7800` | 헤드리스 — 행동·전투 즉시 진행. 결과·로그는 창 모드와 같다 (T7) |
+
+지원: `hello`(protocol `"play"`) / `play_describe` / `set_loadout` / `reset`(seed·class 만, 항상 새 게임) / `observe`(semantic·hierarchy) / `act`(`move_to`·`interact`(talk·pickup·open·enter)·`ui_click`·`use_item`·`engage`·`wait`) / `trigger_response` / `get_log` / `bye`.
+`ui_input` 은 `error(unknown_action)` (입력창이 아직 없음).
+
+**전투 인계 (P3)** — 필드 전투 = 밸런스 모드와 **같은 `CombatSim` + `BTAgent`, 같은 인자** (sim-to-real 격차 0):
+- 조우: `move_to`·`engage` 중 매 틱 적의 `aggro_radius` 안에 들어가면 게임이 즉시 전투 시작 (LLM 을 기다리지 않음). 조우 = 밸런스 시나리오 1개 (`wolf_king` → `forest_wolf_king`)
+- 조우 seed = `mix(reset.seed, 조우 순번)` (SplitMix64, 0~2^31-1). `combat_started.seed` 로 알려 준다
+- 파라미터 = `set_loadout` 의 (class, scenario) 항목 (`params`·`triggers` 를 run_episode 와 똑같이 `CombatSim` 에 넘김). 없으면 정의서 default, `loadout.matched=false`
+- 시작 상태 `full` (`CombatSim` 이 항상 가득 찬 상태로 시작 — 필드 상태를 가져가지 않고, 끝난 뒤에도 필드 체력은 가득)
+- 메시지: `combat_started` → (`trigger` ↔ `trigger_response`)* → `combat_ended`(`result` = episode_result.result 그대로 + `aftermath`) → `action_result`(move_to 는 `interrupted`/`combat`, engage 는 `done`). 전투 시간만큼 세계 시간이 흐른다
+- 전투 중 `trigger_response` 외 요청 → `error(busy)` (전투는 계속). trigger 대기 중이 아닐 때의 `trigger_response` → `bad_request`. 형식·이름·범위가 틀린 응답은 error 를 보내고 **같은 trigger 를 계속 기다린다** (밸런스 모드는 판 중단)
+- 승리: 적 제거, 전리품·경험치, kill 목표. 패배(사망 초과·시간 초과·멈춤): 적의 `checkpoint`(`cp_forest`)에서 부활, 적은 그대로(다음 조우는 새 seed·새 체력)
+- **전투 장면 (창 모드)**: 조우하면 암전 → 전투 뷰어 아레나로 장면 전환 → 학습 판 재생과 같은 연출(보스·직업 모델, 스킬·피격·경고 장판·기믹, 보스 체력바·페이즈·격노, BT 블록, 전투 기록)로 실제 전투 → 결과 배너 → 필드로 복귀 (`Assets/Presentation/BattleViewerPlay.cs`).
+  판은 세션이 만든 `CombatSim` 을 뷰어가 한 틱씩 진행할 뿐이라 결과는 같다 (창 모드만 이벤트 기록을 켜고, 보내는 result 에서 `events` 를 뺀다 — T5·T7 창 ↔ 헤드리스 동일 확인). 플레이 모드 뷰어는 키·마우스·설정 패널·다시하기 버튼을 받지 않는다.
+  헤드리스는 연출 없이 즉시 진행
+- 트리거 왕복 검증은 `CombatEpisodeRunner.CheckTriggerResponse`·`ParseTriggers` 를 두 모드가 공유
+
+- 지역: 마을 `village` — 촌장 `npc_elder`, 상인 `npc_merchant`, 경비 `npc_guard`(시작 시 시야 밖), 울타리 안 상자 `chest_fenced`(닿을 수 없음), 숲 입구 `portal_forest`(alwaysKnown) /
+  숲 `forest` — 약초 `herb_01~04`, 체크포인트 `cp_forest`(부활 위치), 마을로 `portal_village`, 필드 보스 늑대왕 `wolf_king`(어그로 6m)
+- 튜토리얼 (P2): `q_tut_01` 촌장에게 말 걸기 → `q_tut_02` 약초 3개 채집 후 반납(골드 30·작은 물약 2) → `q_tut_03` 인벤토리에서 작은 물약을 퀵슬롯에 등록 → `q_tut_04` 상인에게 작은 물약 2개 구매(골드 20) → `q_tut_05` 늑대왕 처치 후 경비에게 보고(골드 50)
+- 의도적 함정: ① 촌장 첫 대화에서 "나중에" → 퀘스트 미수락 ② 인벤토리를 처음 열면 안내 팝업(`ui.tip`)이 위에 떠 슬롯·등록 버튼을 가림 ③ 상점: 작은 물약 버튼은 골드가 부족해도 눌리고 `ui.shop.message` 에 "골드가 부족합니다 (필요 25G, 보유 20G)", 큰 물약(80G) 버튼은 골드 부족 시 비활성 ④ 체력이 가득할 때 `use_item` → `invalid_state`
+- UI id: HUD `ui.hud.{zone,gold,quickslot.0,quickslot.1,inventory,quests}` / 대화 `ui.dialog.{speaker,text,choice.<i>}` / 퀘스트 `ui.quests.{title,body,close}` / 인벤토리 `ui.inventory.{slot.<item>,detail,assign,close}` / 안내 `ui.tip.{text,ok}` / 상점 `ui.shop.{gold,item.<item>,buy.<item>,message,close}`
+- 관찰 추가분: `quests`(active·ready 퀘스트와 목표 `progress`·`done`·`hint_targets`), `inventory`, `player.quickslots`, 엔티티 `marker`(quest_available / quest_turn_in / objective), `screen.modal` 에 `"tip"`
+- 데이터: `Assets/QA/Data/Resources/QaData/play/` — `world.json`(지역·엔티티·장애물·이동 한계), `dialogues.json`(조건부 시작 노드 `quest:<id>=<state>`·`flag:`, 효과 accept_quest·complete_quest·open_shop·set_flag), `quests.json`(목표 kind talk·collect·quickslot·buy·turn_in), `items.json`(아이템·상점). 기동 시 교차 검증, 밸런스 모드에서는 읽지 않는다
+- 구현 메모
+  - 길찾기는 NavMesh 대신 **격자 A\*** (`Play/World/GridPath.cs`, 0.5m 칸, 8방향, 시야선 단순화) — 고정 dt·결정성·헤드리스를 위해. 관찰되는 의미(`done`/`unreachable`)는 같다
+  - 시야 = 플레이어 추적 카메라 자세로 만든 **고정 16:9 frustum 수학 판정** (창 크기와 무관). 가림(occlusion) 판정은 v0.1 대로 생략
+  - UI = uGUI + TextMeshPro(한글은 OS 글꼴 맑은 고딕으로 동적 글꼴 생성). `interactable` = `Selectable.IsInteractable()` + 요소 중심 `EventSystem.RaycastAll` 첫 대상이 자기 자신. 모달 창은 전체 화면 반투명 배경이 입력을 막는다 → 가린 버튼은 `interactable:false`, 클릭 시 `reason_detail: "blocked by ui.dialog"`
+  - `ui_click` 은 포인터 이벤트(enter→down→up→click)만 보낸다 (`onClick.Invoke` 안 씀). **입력 모듈이 없어** 사람이 창을 클릭해도 플레이에 끼어들지 못한다
+  - 소켓은 백그라운드 스레드, 처리는 메인 스레드(`PlayDriver.Update`). 응답 전에 2프레임 기다려 UI 배치가 갱신된 뒤 관찰한다. 응답 후에는 Step 을 부르지 않는다 = 세계 정지
+  - 계약 외 추가 필드: `play_description.stage`("P1"), `play_log.next_seq`, omniscient 의 `hidden`. hello 는 0.x 동안 **주.부 버전 일치**를 요구 (PLAY_PROTOCOL 7장 "0.x 는 부 버전도 호환 깨짐 허용" 해석)
+- TMP 자산: `Assets/TextMesh Pro/` (TMP Essential Resources). 없으면 `python unity_game/QaTools~/import_tmp_essentials.py` 후 빌드 (`ImportPackage` 는 batch 빌드 안에서 끝나지 않음)
+- 검증: `venv\Scripts\python.exe unity_game/QaTools~/play_check.py --game 127.0.0.1:7800 [--omni 127.0.0.1:7801] [--balance 127.0.0.1:7777] [--game2 127.0.0.1:7802]` (T2~T8, 96항목. `--balance` = 같은 빌드의 밸런스 인스턴스 — T5 결과 비교·T8, `--game2` = T7 교차 비교(창 ↔ 헤드리스). 헤드리스 단독은 omniscient 항목 제외 93)
+
+```
+Assets/QA/Play/Server      PlayServer(TCP), PlaySession(메시지 처리·세계 정지), PlayBoot(-qaPlay 인자), PlayDriver
+Assets/QA/Play/World       PlayData(JSON·교차 검증), WorldState(지역·퀘스트·대화·인벤토리·상점·창, 순수 C#), GridPath(A*)
+Assets/QA/Play/Perception  QaTag/QaIgnore, Visibility(frustum·UI 레이캐스트), UiIds, Semantic/HierarchyObserver
+Assets/QA/Play/Actions     MoveTo, Interact, UseItem, Wait, ActionRunner (순수 C#) + UiClick
+Assets/QA/Play/Combat      Loadout (set_loadout 검증·조회)
+Assets/QA/Play/Log         PlayLog
+Assets/Presentation/Play   PlayView (지역·플레이어·카메라·uGUI: HUD·대화·퀘스트·인벤토리·안내·상점)
+```
+
 ## 도구
 
 빌드·검증·밸런스 측정 도구는 `QaTools~/README.md` (명령행 빌드 `build.ps1 -check`, .NET 하네스, 컴파일 검사, `tune.ps1`·`retune.py`).
@@ -116,7 +174,8 @@ archer 는 여전히 쉬움 (직업 간 불균형 = 밸런스 QA 가 찾아야 �
 - `game.json` — `game`, `game_version` (**데이터를 바꾸면 올린다**)
 - `classes/<id>.json` — 직업 스탯·스킬·BT 파라미터(`params`: range / default / group). 바꾸면 그 직업의 `spec_version` 도 올린다
 - `bosses/default.json` — 보스 수치·페이즈
-- `scenarios.json` — 패치 시나리오 (`scale` 배율 / `set` 값)
+- `scenarios.json` — 패치 시나리오 (`scale` 배율 / `set` 값, 선택 `boss` = 다른 보스 정의서. 생략 = `default`)
+- `bosses/forest_wolf_king.json` — 숲의 늑대왕 (시나리오 `forest_wolf_king`, 플레이 모드 필드 보스). 0.6.2 손 튜닝 default (stable 200판): warrior 클리어 60%, mage 0%, archer 97%. CMA-ES 1,200판으로 warrior 59→98%
 
 기동 시 전부 검증한다 (필수 파라미터, 범위, 모르는 필드 오타 등). 실패하면 서버가 뜨지 않고 로그에 이유를 남긴다.
 

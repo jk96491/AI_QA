@@ -19,6 +19,11 @@ namespace Qa.Presentation
         static void Create()
         {
             if (Application.isBatchMode) return;
+            if (Qa.Play.Server.PlayArgs.Enabled)
+            {
+                CreatePlay();   // 플레이 모드: 필드는 PlayView, 전투 장면만 이 뷰어가 연출 (BattleViewerPlay.cs)
+                return;
+            }
             var go = new GameObject("BattleViewer");
             go.AddComponent<BattleViewer>();
             DontDestroyOnLoad(go);
@@ -75,6 +80,11 @@ namespace Qa.Presentation
             catch (Exception ex)
             {
                 _loadError = ex.Message;
+                return;
+            }
+            if (_playMode)
+            {
+                if (_world == null) StartPlayMode();
                 return;
             }
             BuildStage();
@@ -247,6 +257,11 @@ namespace Qa.Presentation
         void Update()
         {
             if (_repo == null) return;
+            if (_playMode)
+            {
+                UpdatePlayMode();
+                return;
+            }
             float dt = Time.deltaTime;
             float vdt = _paused ? 0f : dt * _speed;   // 화면 시간
 

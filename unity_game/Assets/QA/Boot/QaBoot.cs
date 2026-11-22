@@ -47,6 +47,14 @@ namespace Qa.Boot
         static void OnLoad()
         {
             if (!ResolveEndpoint(out var host, out var port)) return;   // QA 서버 모드 아님
+            if (Qa.Play.Server.PlayArgs.Enabled)
+            {
+                // 플레이 모드 (-qaPlay): 밸런스 서버를 열지 않고 플레이 서버만 (../docs/PLAY_PROTOCOL.md)
+                try { Repo = new SpecRepository(new ResourcesSpecSource("QaData")); }
+                catch (Exception ex) { Fail("게임 데이터 검증 실패: " + ex.Message); return; }
+                Qa.Play.Server.PlayBoot.Start(host, port, Repo, Out, Log, Fail);
+                return;
+            }
 
             Application.runInBackground = true;   // 에디터·창 모드에서 포커스를 잃어도 학습이 멈추지 않게
             if (Application.isBatchMode)

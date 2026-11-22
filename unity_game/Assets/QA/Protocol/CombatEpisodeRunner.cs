@@ -43,17 +43,8 @@ namespace Qa.Protocol
                 });
                 var reply = ch.Recv();   // 응답이 올 때까지 판(게임 시간) 정지
                 if (reply == null) throw new IOException("trigger 응답 대기 중 연결 종료");
-                var type = reply["type"]?.Type == JTokenType.String ? (string)reply["type"] : null;
-                if (type != P.TriggerResponse || !JToken.DeepEquals(reply["episode_id"], episodeId))
-                    throw new ProtocolException(P.EBadRequest,
-                        "trigger_response(episode_id=" + episodeId + ") 를 기대했으나 type=" + reply["type"] + " episode_id=" + reply["episode_id"]);
-                var idx = reply["index"];
-                if (idx == null || (idx.Type != JTokenType.Integer && idx.Type != JTokenType.Float) || idx.Value<double>() != index)
-                    throw new ProtocolException(P.EBadRequest, "trigger_response index " + idx + " != " + index);
-                var ps = reply["params"];
-                if (ps == null || ps.Type == JTokenType.Null) { rec?.TriggerParams.Add(null); return null; }
-                if (!(ps is JObject po)) throw new ProtocolException(P.EBadRequest, "trigger_response.params 는 객체여야 함");
-                rec?.TriggerParams.Add((JObject)po.DeepClone());
+                var po = CheckTriggerResponse(reply, "episode_id", episodeId, index);
+                rec?.TriggerParams.Add(po == null ? null : (JObject)po.DeepClone());
                 return po;
             };
 
@@ -72,7 +63,27 @@ namespace Qa.Protocol
             };
         }
 
-        static List<double> ParseTriggers(JToken t)
+        /// <summary>
+        /// trigger_response 검증 → 덮어쓸 params (null 가능). 밸런스(episode_id)·플레이(encounter_id) 모드가 같이 쓴다.
+        /// 형식이 틀리면 ProtocolException(bad_request).
+        /// </summary>
+        public static JObject CheckTriggerResponse(JObject reply, string idKey, JToken idValue, int index)
+        {
+            var type = reply["type"]?.Type == JTokenType.String ? (string)reply["type"] : null;
+            if (type != P.TriggerResponse || !JToken.DeepEquals(reply[idKey], idValue))
+                throw new ProtocolException(P.EBadRequest,
+                    "trigger_response(" + idKey + "=" + idValue + ") 를 기대했으나 type=" + reply["type"] + " " + idKey + "=" + reply[idKey]);
+            var idx = reply["index"];
+            if (idx == null || (idx.Type != JTokenType.Integer && idx.Type != JTokenType.Float) || idx.Value<double>() != index)
+                throw new ProtocolException(P.EBadRequest, "trigger_response index " + idx + " != " + index);
+            var ps = reply["params"];
+            if (ps == null || ps.Type == JTokenType.Null) return null;
+            if (!(ps is JObject po)) throw new ProtocolException(P.EBadRequest, "trigger_response.params 는 객체여야 함");
+            return po;
+        }
+
+        /// <summary>triggers.boss_hp_below 파싱 (밸런스 run_episode · 플레이 set_loadout 공용).</summary>
+        public static List<double> ParseTriggers(JToken t)
         {
             var outp = new List<double>();
             if (t == null || t.Type == JTokenType.Null) return outp;

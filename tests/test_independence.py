@@ -2,6 +2,7 @@
 
 - game_sim 은 balance_qa, torch 를 import 하지 않는다 (Unity 로 교체될 쪽)
 - balance_qa 는 game_sim 을 import 하지 않는다 (프로세스·포트로만 연결)
+- play_agent 는 game_sim · balance_qa · torch 를 import 하지 않는다 (학습 결과 파일만 읽고 게임과는 TCP 로만)
 """
 import ast
 import unittest
@@ -35,6 +36,9 @@ class IndependenceTest(unittest.TestCase):
 
     def test_learner_does_not_import_game(self):
         self.assert_no_import("balance_qa", ["game_sim"])
+
+    def test_play_agent_imports_only_files_and_tcp(self):
+        self.assert_no_import("play_agent", ["game_sim", "balance_qa", "torch"])
 
 
 if __name__ == "__main__":

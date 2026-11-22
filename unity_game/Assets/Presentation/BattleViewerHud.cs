@@ -158,6 +158,11 @@ namespace Qa.Presentation
         // ------------------------------------------------------------------ 그리기
         void OnGUI()
         {
+            if (_playMode)
+            {
+                if (_repo != null && _world != null) OnGUIPlayMode();   // 입력·설정 패널 없음
+                return;
+            }
             EnsureStyles();
             if (_repo == null)
             {
@@ -203,7 +208,7 @@ namespace Qa.Presentation
             var b = _sim.BossState;
             float w = Mathf.Min(640, Screen.width - 420), x = (Screen.width - w) / 2 - (_panel ? 150 : 0), y = 16;
             GUI.Box(new Rect(x - 10, y - 6, w + 20, b.Winding ? 78 : 58), GUIContent.none, _box);
-            string title = "<b>돌의 군주</b>  <color=#FFB070>페이즈 " + (b.Phase + 1) + "</color>" + (b.Enraged ? "  <color=#FF4040><b>격노</b></color>" : "") +
+            string title = "<b>" + _bossTitle + "</b>  <color=#FFB070>페이즈 " + (b.Phase + 1) + "</color>" + (b.Enraged ? "  <color=#FF4040><b>격노</b></color>" : "") +
                            (_scenario != "base" ? "  <color=#90A0B0>[" + _scenario + "]</color>" : "");
             GUI.Label(new Rect(x, y - 2, w, 20), title, _label);
             var hpRect = new Rect(x, y + 20, w, 18);
@@ -270,10 +275,15 @@ namespace Qa.Presentation
         {
             var r = new Rect(12, 12, 290, 92);
             GUI.Box(r, GUIContent.none, _box);
-            string speed = _paused ? "<color=#FFD060>일시정지</color>" : "x" + _speed.ToString("0.#", CultureInfo.InvariantCulture);
+            string speed = _paused ? "<color=#FFD060>일시정지</color>" : "x" + (_playMode ? _playSpeed : _speed).ToString("0.#", CultureInfo.InvariantCulture);
             GUI.Label(new Rect(22, 18, 270, 20), "<b>" + FormatTime(_sim.Time) + "</b> / " + FormatTime(_cfg.TimeLimit) + "   " + speed, _label);
             GUI.Label(new Rect(22, 40, 270, 20), "seed " + _seed + (_replay != null ? "   <color=#90D0FF>학습 판 #" + _replay.Serial + "</color>" : ""), _small);
             GUI.Label(new Rect(22, 58, 270, 20), "격노까지 " + (_bossSpec.EnrageTime > 0 ? FormatTime(Math.Max(0, _bossSpec.EnrageTime - _sim.Time)) : "-"), _small);
+            if (_playMode)
+            {
+                GUI.Label(new Rect(22, 76, 270, 20), "<color=#90D0FF>필드 조우 — 학습된 BT 가 전투 중</color>", _small);
+                return;
+            }
             var s = QaBoot.Server;
             GUI.Label(new Rect(22, 76, 270, 20), s == null ? "<color=#708090>학습 서버 꺼짐</color>"
                 : "학습 서버 :" + s.Port + "  " + (s.ClientConnected ? "<color=#7CFC00>접속 중</color>" : "대기") + "  판 " + s.EpisodesServed, _small);
@@ -330,6 +340,7 @@ namespace Qa.Presentation
                 GUI.Label(new Rect(x + 20, y + 166, w - 40, 20), _replayMatch.Value
                     ? "<color=#7CFC00>✓ 학습 서버 결과와 완전히 같음 (결정성)</color>"
                     : "<color=#FF6060>✗ 학습 서버 결과와 다름</color>", _small);
+            if (_playMode) return;   // 플레이 모드: 판은 세션이 진행 — 다시·새 전투 없음
             if (GUI.Button(new Rect(x + 20, y + h - 40, 180, 30), "↺ 같은 판 다시 (R)", _button)) Restart();
             if (GUI.Button(new Rect(x + w - 200, y + h - 40, 180, 30), "▶ 새 전투 (Enter)", _button)) StartFromUi(true);
         }

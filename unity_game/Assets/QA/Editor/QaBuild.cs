@@ -19,6 +19,12 @@ namespace Qa.EditorTools
         {
             EnsureBootScene();
             QaViewerAssets.Ensure();   // 뷰어 재질 (셰이더 포함용)
+            if (!QaPlayAssets.Ensure())   // 플레이 모드 UI (TMP 자산·셰이더)
+            {
+                Debug.LogError("[QaBuild] 플레이 모드 UI 자산 준비 실패");
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                return;
+            }
 
             PlayerSettings.companyName = "AI_QA";
             PlayerSettings.productName = "QaArena";

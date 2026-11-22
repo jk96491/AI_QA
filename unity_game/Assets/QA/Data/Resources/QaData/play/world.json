@@ -1,0 +1,51 @@
+{
+  "_note": "플레이 모드 월드 (-qaPlay 에서만 읽음). 좌표 = [x, z] (m). id 는 관찰·행동에 그대로 쓰이는 안정 id — 바꾸면 game_version 을 올린다",
+  "start_zone": "village",
+  "start_gold": 20,
+  "quick_slots": 2,
+  "limits": {"max_action_seconds": 60.0, "interact_range": 2.5, "dt": 0.05, "move_speed": 5.0, "player_radius": 0.4, "cell_size": 0.5},
+  "zones": [
+    {
+      "id": "village", "label": "시작 마을",
+      "bounds": [-40, -40, 40, 40],
+      "spawn": [0, 0],
+      "entities": [
+        {"id": "npc_elder", "role": "npc", "label": "촌장", "pos": [6, 6], "actions": ["talk"], "tags": ["quest_giver"], "dialogue": "npc_elder"},
+        {"id": "npc_merchant", "role": "npc", "label": "상인", "pos": [-5, -4], "actions": ["talk"], "tags": ["merchant"], "dialogue": "npc_merchant"},
+        {"id": "npc_guard", "role": "npc", "label": "경비병", "pos": [34, -22], "actions": ["talk"], "tags": ["guard"], "dialogue": "npc_guard"},
+        {"id": "chest_fenced", "role": "container", "label": "울타리 안 상자", "pos": [-15, 10], "radius": 0.5, "height": 0.8, "actions": ["open"], "tags": []},
+        {"id": "portal_forest", "role": "portal", "label": "숲 입구", "pos": [0, 36], "radius": 1.5, "height": 0.2, "actions": ["enter"], "tags": ["exit"], "always_known": true, "to_zone": "forest"}
+      ],
+      "obstacles": [
+        {"id": "house_01", "center": [12, 14], "size": [6, 5], "height": 3.5},
+        {"id": "house_02", "center": [-6, 18], "size": [5, 5], "height": 3.5},
+        {"id": "well", "center": [3, -6], "size": [1.5, 1.5], "height": 1.0},
+        {"id": "fence_n", "center": [-15, 14], "size": [8.4, 0.4], "height": 1.2},
+        {"id": "fence_s", "center": [-15, 6], "size": [8.4, 0.4], "height": 1.2},
+        {"id": "fence_w", "center": [-19, 10], "size": [0.4, 8.4], "height": 1.2},
+        {"id": "fence_e", "center": [-11, 10], "size": [0.4, 8.4], "height": 1.2}
+      ]
+    },
+    {
+      "id": "forest", "label": "숲",
+      "bounds": [-30, -40, 30, 40],
+      "spawn": [0, -34],
+      "entities": [
+        {"id": "portal_village", "role": "portal", "label": "마을로", "pos": [0, -38], "radius": 1.5, "height": 0.2, "actions": ["enter"], "tags": ["exit"], "always_known": true, "to_zone": "village"},
+        {"id": "cp_forest", "role": "area", "label": "숲 체크포인트", "pos": [3, -33], "radius": 1.0, "height": 0.3, "actions": [], "tags": ["checkpoint"], "always_known": true},
+        {"id": "herb_01", "role": "item", "label": "약초", "pos": [-4, -26], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "herb_02", "role": "item", "label": "약초", "pos": [5, -20], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "herb_03", "role": "item", "label": "약초", "pos": [-7, -12], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "herb_04", "role": "item", "label": "약초", "pos": [9, -4], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "wolf_king", "role": "enemy", "label": "늑대왕", "pos": [0, 20], "radius": 1.2, "height": 2.2, "actions": ["engage"], "tags": ["boss"],
+         "scenario": "forest_wolf_king", "aggro_radius": 6.0, "checkpoint": "cp_forest", "xp": 40, "loot": [{"id": "wolf_fang", "count": 1}]}
+      ],
+      "obstacles": [
+        {"id": "tree_01", "center": [1, -27], "size": [1.5, 1.5], "height": 4.0},
+        {"id": "tree_02", "center": [-2, -17], "size": [1.5, 1.5], "height": 4.0},
+        {"id": "tree_03", "center": [6, -11], "size": [1.5, 1.5], "height": 4.0},
+        {"id": "rock_01", "center": [-13, -20], "size": [3, 2], "height": 1.5}
+      ]
+    }
+  ]
+}

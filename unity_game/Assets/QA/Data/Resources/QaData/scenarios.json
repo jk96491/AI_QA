@@ -6,6 +6,7 @@
     "patch_boss_hp_down5": {"description": "보스 체력 -5%", "scale": {"max_hp": 0.95}},
     "patch_boss_dmg_up10": {"description": "보스 평타·광역 피해 +10%", "scale": {"auto_damage": 1.1, "aoe_damage": 1.1}},
     "patch_boss_fast": {"description": "보스 추격 속도 +25%", "scale": {"move_speed": 1.25}},
-    "patch_gimmick_tight": {"description": "기믹 대응 시간 1.5s → 1.0s", "set": {"gimmick_window": 1.0}}
+    "patch_gimmick_tight": {"description": "기믹 대응 시간 1.5s → 1.0s", "set": {"gimmick_window": 1.0}},
+    "forest_wolf_king": {"description": "숲의 늑대왕 (플레이 모드 필드 보스)", "boss": "forest_wolf_king"}
   }
 }

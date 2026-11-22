@@ -1,0 +1,53 @@
+{
+  "_note": "대화 데이터. start = [{if, node}] 위에서부터 조건이 맞는 첫 노드 (마지막은 조건 없음). 조건 quest:<id>=<locked|available|active|ready|completed> 또는 flag:<name>. next=null 이면 대화 종료. 선택지 1~4개. effects: accept_quest / complete_quest / open_shop / set_flag",
+  "dialogues": {
+    "npc_elder": {
+      "start": [
+        {"if": "quest:q_tut_02=ready", "node": "turn_in"},
+        {"if": "quest:q_tut_02=active", "node": "waiting"},
+        {"if": "quest:q_tut_02=completed", "node": "after"},
+        {"node": "greet"}
+      ],
+      "nodes": {
+        "greet": {"speaker": "촌장", "text": "오, 새로 온 모험가로군. 숲에 약초가 자라는데 요즘 늑대들이 들끓어 아무도 못 간다네. 약초 3개를 구해다 주겠나?",
+                  "choices": [{"text": "맡겨 주세요", "next": "accepted", "effects": [{"accept_quest": "q_tut_02"}]},
+                              {"text": "나중에", "next": null}]},
+        "accepted": {"speaker": "촌장", "text": "고맙네. 숲 입구는 마을 북쪽 끝에 있네.",
+                     "choices": [{"text": "다녀오겠습니다", "next": null}]},
+        "waiting": {"speaker": "촌장", "text": "약초 3개를 부탁하네. 숲 입구는 마을 북쪽 끝일세.",
+                    "choices": [{"text": "알겠습니다", "next": null}]},
+        "turn_in": {"speaker": "촌장", "text": "오, 약초를 구해 왔군!",
+                    "choices": [{"text": "여기 있습니다", "next": "reward", "effects": [{"complete_quest": "q_tut_02"}]}]},
+        "reward": {"speaker": "촌장", "text": "보답으로 물약을 주지. 인벤토리를 열어 물약을 퀵슬롯에 등록해 두게. 모자라면 상인에게 사고.",
+                   "choices": [{"text": "알겠습니다", "next": null}]},
+        "after": {"speaker": "촌장", "text": "숲은 위험하니 늘 조심하게.",
+                  "choices": [{"text": "네", "next": null}]}
+      }
+    },
+    "npc_merchant": {
+      "start": "greet",
+      "nodes": {
+        "greet": {"speaker": "상인", "text": "어서 오게, 필요한 게 있나?",
+                  "choices": [{"text": "물건을 보여 주세요", "next": null, "effects": [{"open_shop": "npc_merchant"}]},
+                              {"text": "됐습니다", "next": null}]}
+      }
+    },
+    "npc_guard": {
+      "start": [
+        {"if": "quest:q_tut_05=ready", "node": "report"},
+        {"if": "quest:q_tut_05=completed", "node": "after"},
+        {"node": "greet"}
+      ],
+      "nodes": {
+        "greet": {"speaker": "경비병", "text": "숲 쪽은 위험하오. 늑대왕이 나타났다는 소문이 있소.",
+                  "choices": [{"text": "알겠소", "next": null}]},
+        "report": {"speaker": "경비병", "text": "늑대왕을 쓰러뜨렸다고? 그 송곳니가 증거로군!",
+                   "choices": [{"text": "숲은 이제 안전합니다", "next": "thanks", "effects": [{"complete_quest": "q_tut_05"}]}]},
+        "thanks": {"speaker": "경비병", "text": "마을을 대표해 감사하오. 약소하지만 받아 두시오.",
+                   "choices": [{"text": "고맙습니다", "next": null}]},
+        "after": {"speaker": "경비병", "text": "덕분에 숲길이 다시 열렸소.",
+                  "choices": [{"text": "네", "next": null}]}
+      }
+    }
+  }
+}

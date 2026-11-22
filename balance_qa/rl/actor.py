@@ -19,7 +19,7 @@ from balance_qa.backend import POLICY_DTYPE
 from balance_qa.control.param_source import ParamSource
 from balance_qa.core.types import GameError, TriggerState
 from balance_qa.game_api.client import EpisodeRequest, GameClient
-from balance_qa.rl.model import ActorCritic
+from balance_qa.rl.model import U_EPS, ActorCritic
 from balance_qa.rl.spec import ActorSpec
 from balance_qa.rl.trajectory import SegmentRewards, Step, Trajectory
 from balance_qa.spec.param import ParamSpace
@@ -47,8 +47,10 @@ class ActorParamSource(ParamSource):
         thresholds: Sequence[float],
         rng: Optional[np.random.Generator] = None,
         record: bool = True,
+        state_features: Optional[Sequence[str]] = None,
     ) -> None:
         self.model = model
+        self.state_features = tuple(state_features) if state_features is not None else None
         self.space = space
         self.fixed = dict(fixed)
         self.trigger_thresholds = tuple(sorted(thresholds, reverse=True))
@@ -67,13 +69,25 @@ class ActorParamSource(ParamSource):
         return self.space.decode(u)
 
     def describe(self) -> Dict[str, object]:
-        return {
+        """policy.json 의 source. 다시 불러와 쓰는 쪽(play_agent 의 numpy 순전파)이 필요한 것을 모두 싣는다:
+        출력 범위(정규화 해제), 판 시작 고정 파라미터, 관측 순서, 모델 구조. policy_theta 는 torch
+        parameters_to_vector 순서 (torso Linear 들 → pi_head → v_head, 각 weight(out×in 행 우선) 다음 bias)."""
+        d: Dict[str, object] = {
             "type": "impala-actor-critic",
             "mode": "sample" if self.rng is not None else "mean",
             "model": repr(self.model),
             "outputs": self.space.names,
             "thresholds": list(self.trigger_thresholds),
+            "output_ranges": [[p.low, p.high] for p in self.space.defs],
+            "fixed": dict(self.fixed),
+            "obs_dim": self.model.obs_dim,
+            "hidden": list(self.model.hidden),
+            "activation": "tanh",
+            "u_eps": U_EPS,
         }
+        if self.state_features is not None:
+            d["state_features"] = list(self.state_features)
+        return d
 
 
 class ParameterServer:
