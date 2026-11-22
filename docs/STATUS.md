@@ -12,6 +12,7 @@
 | 실제 게임 `unity_game` (QaArena) | 다른 에이전트가 제작. **0.4.0** 빌드: 적합성 15/15 PASS, 판당 1~2 ms |
 | 화면 보기 | `--view N` / PyCharm `00b 전체 사이클 (Unity 화면)` — 창 4개, `-qaFollow -qaViewSpeed 8` 자동 |
 | 전체 사이클 | Unity 0.4.0 으로 6단계 PASS (`run/run_full_cycle.py`, `GAME_CMD = UNITY`) |
+| 저장소 | https://github.com/jk96491/AI_QA (main). 제안서 PDF·`reports/`·venv·Unity 빌드 산출물은 `.gitignore` 로 제외 |
 | 테스트 | 79개 통과 (`venv\Scripts\python.exe -m unittest discover -s tests -t .`) |
 
 사용자 우선순위: **성능보다 전체 사이클이 끊김 없이 도는 것.** 단계별로 하나씩 수정.
@@ -24,7 +25,9 @@
 - **C 요청서 작성**: `unity_game/WARRIOR_BALANCE_REQUEST.md` (전사 손튜닝 클리어 ≥60%·사망 ≤1.5). **사용자가 Unity 에이전트에게 전달 필요.**
 - 남은 점: 학습 후에도 사망 ~2회 — 부활을 쓰는 클리어가 여전히 최적. C 반영 빌드에서 다시 측정.
 
-현재 결정 대기 없음.
+### 학습 쪽 하드코딩 제거 여부 (포트폴리오 전, 2026-11-22 제안)
+- 핵심 주장 "학습할 대상은 필요한 쪽(게임)이 정의서로 선언, RL 은 그것만 학습" 과 어긋나는 하드코딩이 남아 있다 (6장): 페르소나 파라미터 이름(θ, φ), 정책 출력 파라미터 목록, 트리거 종류 `boss_hp_below`.
+- 제안: 포트폴리오 전에 describe 로 받게 고친다 (권장) / 또는 포트폴리오에 한계로 적는다. **사용자 미결정.**
 
 ## 3. 빌드별 측정 이력 (stable, 평가 시드)
 
