@@ -1,0 +1,41 @@
+# ---- Python ----
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ---- 실행 결과 (run/*.py 로 다시 만들 수 있음) ----
+reports/
+
+# ---- IDE (실행 구성은 공유, 개인 설정은 제외) ----
+.idea/workspace.xml
+.idea/shelf/
+.idea/usage.statistics.xml
+.vs/
+
+# ---- Claude Code 개인 설정 ----
+.claude/settings.local.json
+
+# ---- Unity (unity_game/) : Assets·Packages·ProjectSettings 만 올린다 ----
+unity_game/[Ll]ibrary/
+unity_game/[Tt]emp/
+unity_game/[Oo]bj/
+unity_game/[Ll]ogs/
+unity_game/[Bb]uild/
+unity_game/[Bb]uilds/
+unity_game/[Uu]ser[Ss]ettings/
+unity_game/.vs/
+unity_game/*.csproj
+unity_game/*.sln
+unity_game/QaTools~/**/bin/
+unity_game/QaTools~/**/obj/
+unity_game/QaTools~/**/out.txt
+unity_game/QaTools~/**/err.txt
+
+# ---- OS ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---- 원문 제안서 (비공개) ----
+*.pdf

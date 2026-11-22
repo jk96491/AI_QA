@@ -1,0 +1,5 @@
+{
+  "_note": "데이터(직업·보스·시나리오)를 바꾸면 game_version 을 올리고, 바뀐 직업의 spec_version 도 올린다",
+  "game": "qa_arena",
+  "game_version": "0.5.0"
+}

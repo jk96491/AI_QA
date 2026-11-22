@@ -1,0 +1,23 @@
+<!--
+  Unity 없이 같은 로직 소스(Assets/QA 의 Data·Sim·BT·Protocol)로 QA 서버를 띄우는 .NET 하네스.
+  Unity 빌드와 결과가 바이트 단위로 같다 (전용 PRNG). 밸런스 측정·튜닝을 빠르게 반복할 때 쓴다.
+    dotnet build -c Release
+    bin\Release\net9.0\Harness.exe ..\..\Assets\QA\Data\Resources\QaData 7791
+  Newtonsoft.Json 은 Unity 패키지 캐시(Library/)에서 가져오므로, 프로젝트를 Unity 로 한 번 연 뒤에 빌드된다.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <QaRoot>$(MSBuildThisFileDirectory)..\..\</QaRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(QaRoot)Assets\QA\Data\**\*.cs;$(QaRoot)Assets\QA\Sim\**\*.cs;$(QaRoot)Assets\QA\BT\**\*.cs;$(QaRoot)Assets\QA\Protocol\**\*.cs" />
+    <Compile Include="Program.cs" />
+    <Reference Include="$(QaRoot)Library\PackageCache\com.unity.nuget.newtonsoft-json@*\Runtime\Newtonsoft.Json.dll" />
+  </ItemGroup>
+</Project>

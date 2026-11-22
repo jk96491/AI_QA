@@ -1,0 +1,6 @@
+# Python 3.8 (프로젝트 venv: AI_QA/venv, Anaconda 3.8.8 기반)
+# 시뮬레이터·BT: numpy / 학습(최적화기·정책·IMPALA): PyTorch CPU
+#   venv\Scripts\python.exe -m pip install -r requirements.txt
+-f https://download.pytorch.org/whl/torch_stable.html
+numpy==1.22.4
+torch==1.8.1+cpu

@@ -1,0 +1,24 @@
+<!--
+  Unity 에디터를 열지 않고 Assets/**/*.cs 전체(뷰어·에디터 스크립트 포함)를 UnityEngine/UnityEditor DLL 로 컴파일 검사한다.
+  에디터가 프로젝트를 열고 있어 명령행 빌드를 못 할 때 오류를 미리 잡는 용도. (실행 파일은 만들지 않음)
+    dotnet build
+  Unity 설치 경로가 다르면 UnityManaged 를 바꾼다.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>UNITY_EDITOR</DefineConstants>
+    <NoWarn>CS0414</NoWarn>
+    <QaRoot>$(MSBuildThisFileDirectory)..\..\</QaRoot>
+    <UnityManaged>C:\Program Files\Unity\Hub\Editor\6000.0.60f1\Editor\Data\Managed</UnityManaged>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(QaRoot)Assets\**\*.cs" />
+    <Reference Include="$(QaRoot)Library\PackageCache\com.unity.nuget.newtonsoft-json@*\Runtime\Newtonsoft.Json.dll" />
+    <Reference Include="UnityEngine"><HintPath>$(UnityManaged)\UnityEngine.dll</HintPath></Reference>
+    <Reference Include="UnityEditor"><HintPath>$(UnityManaged)\UnityEditor.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

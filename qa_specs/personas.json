@@ -1,0 +1,42 @@
+{
+  "_note": "페르소나 = N 설정값(θ, φ) + 보상 계수(λ). w 는 최적화가 정한다. 보상 R = -(소요 분) - λ_death·사망 - λ_consumable·소모품 - fail_penalty·[클리어 실패]. fail_penalty 는 공통값(페르소나별 덮어쓰기 가능)",
+  "fail_penalty": 30.0,
+  "personas": [
+    {
+      "id": "aggressive",
+      "name": "공격형",
+      "survival_hp_threshold": 0.3,
+      "dps_hp_floor": 0.2,
+      "lambda_death": 1.0,
+      "lambda_consumable": 0.0,
+      "description": "빠른 클리어, 사망 감수"
+    },
+    {
+      "id": "stable",
+      "name": "안정형",
+      "survival_hp_threshold": 0.8,
+      "dps_hp_floor": 0.7,
+      "lambda_death": 10.0,
+      "lambda_consumable": 0.0,
+      "description": "사망 회피 최우선"
+    },
+    {
+      "id": "efficient",
+      "name": "효율형",
+      "survival_hp_threshold": 0.5,
+      "dps_hp_floor": 0.4,
+      "lambda_death": 3.0,
+      "lambda_consumable": 1.0,
+      "description": "소모품 절약"
+    },
+    {
+      "id": "speedrun",
+      "name": "최속형",
+      "survival_hp_threshold": 0.3,
+      "dps_hp_floor": 0.2,
+      "lambda_death": 0.0,
+      "lambda_consumable": 0.0,
+      "description": "E4 밸런스 붕괴 탐색용: 클리어 시간만 최소화"
+    }
+  ]
+}

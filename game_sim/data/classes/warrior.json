@@ -1,0 +1,31 @@
+{
+  "spec_version": "0.1",
+  "class": "warrior",
+  "display_name": "전사",
+  "ranged": false,
+  "stats": {
+    "max_hp": 6000, "armor": 0.3,
+    "max_resource": 100, "start_resource": 0, "resource_regen": 0,
+    "move_speed": 6.0,
+    "potions": 3, "potion_heal_ratio": 0.4, "potion_cooldown": 30,
+    "crit_chance": 0.1
+  },
+  "skills": [
+    {"name": "basic_attack", "role": "basic", "damage": 110, "range": 3.5, "resource_gain": 12},
+    {"name": "strike", "role": "dps", "damage": 300, "cooldown": 6, "cost": 30, "range": 3.5},
+    {"name": "charge", "role": "gap_close", "damage": 80, "cooldown": 12, "range": 12, "gap_close": true},
+    {"name": "shield_block", "role": "defense", "cooldown": 15, "range": 0, "shield": 0.6, "effect_duration": 4},
+    {"name": "bladestorm", "role": "burst", "damage": 1100, "cooldown": 30, "cost": 50, "cast_time": 2.0, "range": 3.5}
+  ],
+  "params": {
+    "survival_hp_threshold": {"range": [0.05, 1.0], "default": 0.5, "group": "persona", "unit": "hp_ratio", "description": "θ: 생존 필요도가 오르기 시작하는 체력 (페르소나 설정값)"},
+    "dps_hp_floor":          {"range": [0.05, 1.0], "default": 0.4, "group": "persona", "unit": "hp_ratio", "description": "φ: 이 체력 아래에서 딜 의지 감소 (페르소나 설정값)"},
+    "w_burst":          {"range": [0.0, 1.0], "default": 0.6, "unit": "weight", "description": "버스트 블록 가중치"},
+    "w_dps":            {"range": [0.0, 1.0], "default": 0.5, "unit": "weight", "description": "딜 유지 블록 가중치"},
+    "w_survival":       {"range": [0.0, 1.0], "default": 0.9, "unit": "weight", "description": "생존 블록 가중치"},
+    "potion_hp":        {"range": [0.1, 0.9], "default": 0.5, "unit": "hp_ratio", "description": "생존 블록에서 물약을 마시는 체력"},
+    "resource_reserve": {"range": [0.0, 0.6], "default": 0.3, "unit": "ratio", "description": "딜 스킬 사용 후 남길 자원 비율 (버스트 비축)"},
+    "min_commit":       {"range": [0.0, 3.0], "default": 0.9, "unit": "s", "description": "블록 최소 유지 시간"},
+    "charge_distance":  {"range": [2.0, 10.0], "default": 6.0, "unit": "m", "description": "이 거리보다 멀면 돌진"}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "default",
+  "max_hp": 50000,
+  "reach": 3.0,
+  "move_speed": 2.0,
+  "auto_damage": 100,
+  "auto_interval": 2.0,
+  "aoe_damage": 280,
+  "aoe_interval": 15.0,
+  "aoe_jitter": 3.0,
+  "gimmick_first_at": 30.0,
+  "gimmick_interval": 40.0,
+  "gimmick_jitter": 8.0,
+  "gimmick_window": 1.5,
+  "gimmick_damage_ratio": 0.6,
+  "damage_variance": 0.2,
+  "phase_thresholds": [0.75, 0.5, 0.25],
+  "phase_damage_mult": [1.0, 1.1, 1.25, 1.4],
+  "phase_speed_mult": [1.0, 1.05, 1.1, 1.2]
+}
