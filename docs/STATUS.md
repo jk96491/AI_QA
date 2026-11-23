@@ -1,12 +1,13 @@
-# 현재 상태 · 이어서 할 일 (2026-11-23 기준)
+# 현재 상태 · 이어서 할 일 (2026-11-24 기준)
 
-> 새 세션은 이 문서부터 읽는다. 구조·규칙은 `../CLAUDE.md`, 게임 계약은 `PROTOCOL.md`(v1.3), **SDK 는 `SDK.md`**, 플레이 모드 계약은 `PLAY_PROTOCOL.md`(v0.2).
+> 새 세션은 이 문서부터 읽는다 — **먼저 5장 맨 위 "다음 세션 할 일"**. 구조·규칙은 `../CLAUDE.md`, 게임 계약은 `PROTOCOL.md`(**v1.4**), **SDK 는 `SDK.md`**(0.2.0), 플레이 모드 계약은 `PLAY_PROTOCOL.md`(**v0.3**), 밴딧 설계 `BANDIT_IMPALA_DESIGN.md`, LLM 연결 `LLM_SETUP.md`.
+> 현재 Unity 빌드 **QaArena 0.8.2** (`unity_game/Build`, 밸런스 프로토콜 1.3 SDK 로 빌드 — 1.4 반영 전, 플레이 0.4·0.3 hello 둘 다 받음).
 
 ## 1. 지금 어디까지 왔나
 
 | 영역 | 상태 |
 |---|---|
-| **BT-QA Game SDK 0.1.0** (2026-11-23) | **원본은 별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** (0.1.0 = `5627219`, 로컬 폴더는 삭제 — 고칠 때 clone, `docs/SDK.md`). 이 저장소는 **사본 3개만** 씀: `btqa_game/`(Python), `unity_game/Packages/com.btqa.game`(Unity embedded), `docs/PROTOCOL.md`(계약 v1.3). 갱신 `run/run_sync_sdk.py`. **학습 대상 = 블록 가중치뿐** (CMA-ES 포함). `docs/SDK.md` |
+| **BT-QA Game SDK 0.2.0** (2026-11-23) | **원본은 별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** (0.1.0 = `5627219`, **0.2.0 = `6c71e4c` 푸시됨**, 프로토콜 1.4 `initial_state`). 로컬 clone `btqa_sdk/` 있음 (git 제외 — 원본 수정은 여기서 커밋·푸시 후 `run/run_sync_sdk.py`). 이 저장소는 **사본 3개만** 씀: `btqa_game/`(Python), `unity_game/Packages/com.btqa.game`(Unity embedded), `docs/PROTOCOL.md`(계약 v1.4). 갱신 `run/run_sync_sdk.py`. **학습 대상 = 블록 가중치뿐** (CMA-ES 포함). `docs/SDK.md` |
 | 학습 플랫폼 `balance_qa` | 완료: 평가·CMA-ES·ES 정책·**IMPALA**(Beta Actor-Critic, V-trace, torch CPU)·민감도·리포트 |
 | IMPALA 액터 | 로컬 다중 프로세스(기본) / threads / external(클라우드 대비). 클라우드 보강 항목은 `DISTRIBUTED.md` 4장 |
 | 게임 대역 `game_sim` | 참조 구현 + 테스트용 (지우지 않음). 프로토콜 1.3, 버전 0.5.0 (`btqa_game` 위에서 동작) |
@@ -67,6 +68,7 @@
 멈춘 판: 0.3.0 이후 모든 조건 0%.
 0.8.1 측정: `reports/20261123-230344` (base 시나리오). 스킬 확장으로 default 보스가 쉬워짐 — 손튜닝이 전사·궁수 100% 라 base 는 변별력이 낮다 (학습 이득은 소요 425→260s). **늑대왕(forest_wolf_king) 0.8.1, 전사/stable, n=300**: 손튜닝 50% [45,56]·583s·사망 2.74 → **CMA-ES 3000판 100%·295s·사망 0.86** (`reports/20261123-230419`, w_evade 0.99·w_burst 0.70·w_dps 0.31·w_setup 0.36·w_survival 0.03 — 회피 블록이 결정적) / IMPALA 8000판(트리거 구간 모드) 100%·301s·사망 0.99 (`reports/20261123-230437`). check-play 126/126 (0.8.1 + 이 CMA 로드아웃, 23:0x 빌드). 재플레이 1차는 Unity 세션 build.ps1 이 모든 QaArena 를 종료해 끊김 → 포트 분리(학습 쪽 7800~7809, Unity 7810~7819) 후 **7801 에서 재플레이 완료** `reports/relay-20261123-231158`: 5개 완료, 늑대왕 304s·사망 1, 물약 3→사용 3. 빌드는 play 0.4·0.3 둘 다 받음 (0.4 = computer use, 사용자 판단 대기, 계약은 0.3).
    - **0.8.2** (Unity 보고): 밸런스 변화 없음(T1 21/21 동일 → 재학습 불필요), 월드 이름표(화면만), H2 물약 설명 "필드 30% / 결계 전투 40%" 로 해결, v0.4 raw 입력(0.4 hello 만). 학습 쪽 확인: **check-play 126/126** (0.3 접속, 0.8.1 CMA 로드아웃 그대로).
+   - **0.8.2 재플레이 (2026-11-23 23:57, relay + 메모)** `reports/relay-20261123-235751/` (+스크린샷 3장): 5개 완료, 늑대왕 304s·사망 1, 물약 4→3 가져가 3 사용. 이름표·H2 확인. 화면 후속 3건 → `unity_game/UI_FOLLOWUP_0.8.2.md` (H1 대화창 겹침 계속, H3 전투 로그 ↔ QA 패널 겹침, H4 스킬 바 긴 이름 ↔ 쿨 숫자 겹침).
 0.7.0 측정: `reports/20261123-193733` (20초). 0.6.2 대비: 전사 CMA 는 같거나 낫고(사망 0.67→0.52), IMPALA 는 소요 371→405s 로 느려짐, 마법사 사망 1.70→2.06 — 물약 체력·자원 비축을 더 이상 학습하지 않는 영향으로 보임 (가중치만 학습의 비용). 단일 실행이라 확정 아님.
 0.6.2 측정: `reports/20261123-002152` (25초). 0.4.0 + 보상 A 측정: `reports/20261122-182126`. 0.4.0 측정 리포트: `reports/20261122-181822` (run_measure_build.py), 전체 사이클: `reports/20261122-181455`.
 
@@ -81,11 +83,32 @@
 | `WARRIOR_BALANCE_REQUEST.md` | 전사가 적게 죽고 깨도록 (결정 C) | 반영됨 (0.5.0, 0.6.2 측정으로 확인) |
 | `PLAY_MODE_REQUEST.md` | 플레이 모드: 마을·숲 튜토리얼, 구조화 관찰, 고수준 행동, 전투 → `CombatSim`+학습 BT 인계 | 반영됨 (0.6.2, `PLAY_MODE_REPORT.md`) |
 | `PLAY_PROTOCOL_0.2_FOLLOWUP.md` | v0.2 미반영 3건: 버전 0.2, `boss_mismatch`, 보스 결계·`field_state` | **전달 대기** (2026-11-23) |
+| `PLAY_PROTOCOL_0.3_REQUEST.md` | pilot_note 표시·전투 물약 = 인벤토리·경비병 안내 (+4장 H1·H2) | 반영됨 (0.7.1~0.8.2). **H1(메모 패널 ↔ 대화창 겹침) 미반영** |
+| `BOSS_PATTERN_REQUEST.md` | 늑대왕 2D 아레나·낙석·장판·탄막·돌진 | 반영됨 (0.8.0, `BOSS_PATTERN_REPORT.md`) |
+| `PLAYER_SKILL_BT_REQUEST.md` | 스킬 6~7·블록 5개(`w_evade`·`w_setup`)·스킬 바 | 반영됨 (0.8.1, `SKILL_BT_REPORT.md`) |
+| **`PROTOCOL_UPDATE_1.4.md`** | 밸런스 1.4 `initial_state` (QaArenaHost 선언 2줄 + `SetStartHpRatio`) | **대기** — Unity 세션이 "다음 Unity 세션에서" 하기로 메모 (2026-11-23) |
+| **`UI_FOLLOWUP_0.8.2.md`** | 화면 H1(계속)·H3(전투 로그 ↔ QA 패널)·H4(스킬 이름 ↔ 쿨 숫자) | **전달 대기** (2026-11-24) |
+| (Unity → 학습) `PLAY_PROTOCOL_0.4_COMPUTER_USE_REQUEST.md` | 비전 없는 computer use (좌표·raw 입력) — 빌드엔 이미 들어감 (0.4 hello 만) | **사용자 결정 대기** — 계약은 0.3 유지 |
 | `SDK_MIGRATION.md` | SDK 도입 (0.7.0) 기록 — 바뀐 파일, 검증, **앞으로 SDK 패키지 수정 금지·블록 추가 방법** | 학습 쪽이 직접 반영 완료. **Unity 에이전트가 다음 작업 전에 읽도록 사용자가 알려 줄 것** |
 
 Unity 에이전트에게 지시할 때는 사용자가 직접 전달한다 (학습 쪽은 `unity_game/` 코드를 고치지 않음).
+Unity 쪽은 **별도 Claude Code 세션**(이름 `unity-game-1b`)이 맡고, 세션끼리 메시지를 주고받는다. **포트 약속: 학습 쪽 7800~7809, Unity 쪽 7810~7819.** Unity 의 `build.ps1` 은 모든 QaArena 를 종료하므로 빌드 전에 알려 주기로 했다.
 
 ## 5. 다음 세션 시작 방법
+
+### 다음 세션 할 일 (2026-11-24 저장)
+
+1. **Unity 1.4 반영 확인** (`unity_game/PROTOCOL_UPDATE_1.4.md`, Unity 세션이 다음에 진행) → 빌드 0.8.3 이 오면:
+   `python -m btqa_game check --game ...` + `venv\Scripts\python.exe -m balance_qa check-game --game-cmd ...` (initial_state 항목 PASS) →
+   **E8 을 늑대왕으로**: `venv\Scripts\python.exe -m experiments.e8_bandit --workers 8 --game-cmd "unity_game/Build/QaArena.exe -batchmode -nographics -qaPort {port}" --combos warrior:forest_wolf_king` (첫 판은 `--quick`, 본 실행은 칸당 판수·예산을 키워서). 결론 전 `/bt-sim-balance-review`.
+   game_sim E8 결과(밴딧 이득 없음)는 아래 기록 — Unity 에서 다시 판정.
+2. **`unity_game/UI_FOLLOWUP_0.8.2.md` 전달** (사용자 → Unity 세션): H1·H3·H4 화면 겹침.
+3. **사용자 결정 대기**: 플레이 v0.4 computer use 진행 여부 (진행하면 `PLAY_PROTOCOL.md` 0.4 로 올리고 `play_agent` 클라이언트 대응), 2장의 잘못된 `trigger_response` 처리.
+4. 플레이 모드 재플레이는 `relay` 방식 (Claude Code 세션이 플레이어, API 과금 없음 — 사용자 결정): 창 게임 `QaArena.exe -qaPlay -qaPort 7800 -qaPlaySpeed 4` + `python -m play_agent relay --game 127.0.0.1:7800 --loadout reports/20261123-230419` (0.8.1 CMA 늑대왕) + `step <tool> '<json>' --think "..." --kind plan|thought|finding`. PowerShell 은 JSON 따옴표를 망가뜨리니 Bash 로. 화면 확인은 창 스크린샷 (전투 중엔 지연 캡처).
+5. 최신 학습 결과 (0.8.1, 0.8.2 도 밸런스 동일): 늑대왕 전사 CMA `reports/20261123-230419` (100%, 295s, w_evade 0.99), IMPALA 구간 모드 `reports/20261123-230437` (100%, 301s). base: `reports/20261123-230344`.
+6. 남은 큰 일: 포트폴리오 문서 (`docs/PORTFOLIO_PLAN.md`), 로컬·API LLM 실제 실행(아직 가짜 전송 테스트만), 밴딧 컨텍스트에 페르소나 λ·플레이 기록 분포(`ContextSampler`) — 설계 9장.
+
+### 처음 시작할 때
 
 1. `AI_QA` 폴더에서 Claude Code 시작 (기억 파일이 이 폴더 기준).
    - **다음 작업 = 포트폴리오 문서** (사용자 결정 2026-11-22): `docs/PORTFOLIO_PLAN.md` 부터 읽는다.
@@ -98,7 +121,7 @@ Unity 에이전트에게 지시할 때는 사용자가 직접 전달한다 (학�
      후속(학습 쪽): carried<cap 전투는 학습 분포 밖 → 밸런스 프로토콜 `run_episode.initial_state.potions`(SDK 원본 레포) + 시작 물약을 섞은 재학습.
    - **0.7.1 재플레이 (2026-11-23 22:18, relay + 생각 메모)** `reports/relay-20261123-221805/` (+`play_notes.png`): 5개 완료, 행동 43(첫 판 76), 메모 35개 전부 화면 표시, 경비병을 안내만으로 찾음, 전투 물약 4→carried 3→사용 3→잔여 1, 클리어 324s·사망 1. 후속 H1(메모 패널이 대화창 글자와 겹침)·H2(물약 30%↔40%) → 요청서 4장. `play_agent/check.py` v0.3 반영 완료 (T-P 물약·T-N 메모 이식, T5·T9 는 carried == cap 조우만 밸런스 비교, T9 도 물약 준비) → **check-play 126/126 PASS** (0.7.1, CMA 로드아웃).
    - **보스 패턴 고도화 요청 (사용자 요청 2026-11-23)** `unity_game/BOSS_PATTERN_REQUEST.md`: 늑대왕만, 1D 거리 → 2D 아레나, 낙석(경고 원)·독 장판·부채꼴 탄막·돌진 띠·페이즈 조합, 피하기 = 생존 블록 필요도에 `danger` (학습 대상은 가중치 그대로), 프로토콜 v1.3 불변, 0.8.0. 받으면 학습 쪽 재측정·재학습.
-   - **컨텍스트 밴딧 구현 (사용자 요청 2026-11-23 "밴딧 설계대로 구현")**: 프로토콜 **v1.4** `run_episode.initial_state` (SDK 원본 `btqa_sdk` 0.2.0 = 로컬 커밋 `6c71e4c`, **푸시 전** → 사본 동기화), game_sim 선언·적용(hp_ratio·potions_ratio), balance_qa 전송·검사·`optimize(initial_state/_fn)`, **`bandit` 명령**(PyCharm `06b`), **E8** (`experiments/e8_bandit.py`), play_agent `BanditPolicy`(numpy = torch 테스트). 테스트 118개. Unity 반영 요청 `unity_game/PROTOCOL_UPDATE_1.4.md` (QaArenaHost 선언 2줄 + `SetStartHpRatio`). 결정: 시작 트리거 없음(가중치를 params 로), resource_ratio 제외 — 설계 9장.
+   - **컨텍스트 밴딧 구현 (사용자 요청 2026-11-23 "밴딧 설계대로 구현")**: 프로토콜 **v1.4** `run_episode.initial_state` (SDK 원본 `btqa_sdk` 0.2.0 = `6c71e4c` 푸시됨 → 사본 동기화), game_sim 선언·적용(hp_ratio·potions_ratio), balance_qa 전송·검사·`optimize(initial_state/_fn)`, **`bandit` 명령**(PyCharm `06b`), **E8** (`experiments/e8_bandit.py`), play_agent `BanditPolicy`(numpy = torch 테스트). 테스트 118개. Unity 반영 요청 `unity_game/PROTOCOL_UPDATE_1.4.md` (QaArenaHost 선언 2줄 + `SetStartHpRatio`). 결정: 시작 트리거 없음(가중치를 params 로), resource_ratio 제외 — 설계 9장.
      **E8 첫 결과 (game_sim, warrior·mage/base, stable, 칸 18개 × 60판, 단일 실행)** `reports/20261123-234123`: 칸 평균 보상 손튜닝 −9.08 / CMA-가득 −8.43 / **CMA-전역 −7.97** / CMA-칸별 −7.89 (10,800판) / **IMPALA 밴딧 −8.45** (3,000판, 갱신 93회). 칸별 개선 중 얻은 몫(중앙값): CMA-전역 80%, 밴딧 38%. → **이 게임에서는 밴딧 이득 없음**: 같은 판 수의 CMA-전역(가중치 하나)이 이긴다. 시작 상태별 최적 가중치 차이가 작고(전역이 칸별의 80%), 밴딧은 3,000판으로 덜 배웠다. game_sim 은 2D 패턴·스킬 확장이 없는 단순 대역이라 결론은 Unity 늑대왕(1.4 반영 후)에서 다시. 칸당 60판이라 CI 가 넓다 (CMA-칸별이 CMA-전역보다 나쁜 칸 = 칸당 600판 예산 부족·잡음).
    - **IMPALA = 컨텍스트 밴딧 (사용자 결정 2026-11-23, 판 시작 1회 결정)** 설계 `docs/BANDIT_IMPALA_DESIGN.md`: 컨텍스트 = 조합 원-핫·페르소나 λ·시작 상태(PROTOCOL v1.4 `run_episode.initial_state` 제안), E8 = CMA-전역/CMA-셀별 대비. 순서: Unity 보스 패턴 → 스킬·BT → v1.4(SDK 원본) → 밴딧 모드.
    - **스킬·BT 확장 요청** `unity_game/PLAYER_SKILL_BT_REQUEST.md` (보스 패턴 작업 뒤, 같은 0.8.0 권장): 직업당 스킬 6~7(역할 Mobility·Setup 추가), 블록 3→5(`w_evade`·`w_setup`), 블록 안 스킬 점수·콤보·시전 취소, 표시 전용 스킬 바(쿨 쓸기). 측정: 평타 비중 전사 80%·마법사/궁수 64%, 전사 돌진 0%(game_sim default).
@@ -110,7 +133,7 @@ Unity 에이전트에게 지시할 때는 사용자가 직접 전달한다 (학�
    3. console.anthropic.com 에서 API 키 → `setx ANTHROPIC_API_KEY "sk-ant-..."` (새 터미널·PyCharm 재시작). 키는 채팅에 붙이지 않는다
    4. 창 모드 게임 `unity_game\Build\QaArena.exe -qaPlay -qaPort 7800 -qaPlaySpeed 4` + `venv_play\Scripts\python.exe -m play_agent play --game 127.0.0.1:7800 --loadout reports/20261123-003306 --effort low --max-actions 40` (첫 실행은 짧게) → `reports/play-<시각>/run.json`·`play_log.json`
    - 첫 실제 API 실행이라 `pilot.py` 가 SDK 와 어긋나면(예: `output_config`·`cache_control` 인자, strict 스키마 400) 그 자리에서 고친다. 가짜 API 테스트만 통과한 상태.
-6. 사용자에게 남은 것: 2장 결정 대기(잘못된 `trigger_response`), `unity_game/PLAY_PROTOCOL_0.2_FOLLOWUP.md` Unity 에이전트에 전달, 늑대왕 마법사 0% 조사 여부, 포트폴리오 문서.
+6. 사용자에게 남은 것: 2장 결정 대기(잘못된 `trigger_response`), 늑대왕 마법사 손튜닝 0% 조사 여부 (0.8.1 에서도 0% — Unity 보고), 포트폴리오 문서. (`PLAY_PROTOCOL_0.2_FOLLOWUP.md` 는 0.3 요청으로 대체·반영됨)
 
 ## 6. 미구현·알려진 한계
 

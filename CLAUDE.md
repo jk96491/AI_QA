@@ -3,7 +3,7 @@
 원문 제안서 `밸런스 QA를 위한 BT 파라미터 최적화 프로세스.pdf`의 주장을 검증한다.
 **새 세션은 `docs/STATUS.md`(현재 상태·결정 대기·빌드별 측정 이력·다음 할 일)부터 읽는다.** 작업이 끝나면 그 문서를 갱신한다.
 설계 `시뮬레이션_프로토타입_설계.md`, 구조 `docs/ARCHITECTURE.md`, **게임 연동 계약 `docs/PROTOCOL.md`** (v1.4), **SDK `docs/SDK.md`** (사본·동기화 규칙; SDK 원본은 별도 레포).
-플레이 모드(LLM 비전투 + 학습 BT 전투) 계약 `docs/PLAY_PROTOCOL.md` v0.2 (밸런스 계약과 별개), 클라이언트 `play_agent/`.
+플레이 모드(LLM 비전투 + 학습 BT 전투) 계약 `docs/PLAY_PROTOCOL.md` v0.3 (밸런스 계약과 별개), 클라이언트 `play_agent/`.
 
 ## 구조 (가장 중요)
 
