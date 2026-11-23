@@ -2,7 +2,7 @@
 
 원문 제안서 `밸런스 QA를 위한 BT 파라미터 최적화 프로세스.pdf`의 주장을 검증한다.
 **새 세션은 `docs/STATUS.md`(현재 상태·결정 대기·빌드별 측정 이력·다음 할 일)부터 읽는다.** 작업이 끝나면 그 문서를 갱신한다.
-설계 `시뮬레이션_프로토타입_설계.md`, 구조 `docs/ARCHITECTURE.md`, **게임 연동 계약 `docs/PROTOCOL.md`** (v1.3), **SDK `docs/SDK.md`** (사본·동기화 규칙; SDK 원본은 별도 레포).
+설계 `시뮬레이션_프로토타입_설계.md`, 구조 `docs/ARCHITECTURE.md`, **게임 연동 계약 `docs/PROTOCOL.md`** (v1.4), **SDK `docs/SDK.md`** (사본·동기화 규칙; SDK 원본은 별도 레포).
 플레이 모드(LLM 비전투 + 학습 BT 전투) 계약 `docs/PLAY_PROTOCOL.md` v0.2 (밸런스 계약과 별개), 클라이언트 `play_agent/`.
 
 ## 구조 (가장 중요)
@@ -12,7 +12,7 @@
 | `btqa_game/` | **BT-QA Game SDK 사본 (Python)** — 원본은 별도 GitHub 레포 `btqa_sdk`. 서버·세션·정의서 선언·검증·적합성 검사 `python -m btqa_game check`·예제 게임. Unity 사본 `unity_game/Packages/com.btqa.game`, 계약 사본 `docs/PROTOCOL.md`. **사본은 직접 고치지 않는다** — 원본 수정 후 `run/run_sync_sdk.py`. 이 저장소 기준 개요 `docs/SDK.md` | 이 저장소의 다른 패키지 import, `torch`·`numpy` |
 | `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터. 서버는 SDK `btqa_game` 으로 구현 (`GameSimHost`). 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
 | `balance_qa/` | **학습 플랫폼** (SDK 를 쓰는 쪽, 계약만 따름): 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim`, `btqa_game` import |
-| `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.3) | — |
+| `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.4) | — |
 | `play_agent/` | **플레이 모드 클라이언트**: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot(LLM 백엔드 `play_agent/llm/`, 각자 고른 LLM)·PilotRelay(대화형 에이전트가 직접)·check-play. 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch` import |
 | `unity_game/` | **실제 테스트 게임 (Unity 프로젝트, 다른 에이전트가 제작 중)**. 제작 규칙 `unity_game/AGENT_GUIDE.md` | 학습 쪽 코드에서 import·경로 의존 금지 (`--game` / `--game-cmd` 로만 연결) |
 
@@ -51,13 +51,14 @@ python -m balance_qa list                               # describe 정보 + 페�
 python -m balance_qa --workers 4 evaluate --cls mage --persona stable -n 300
 python -m balance_qa --workers 4 optimize --cls mage --persona stable --budget 3000
 python -m balance_qa --workers 4 policy   --cls warrior --persona stable --budget 6000
-python -m balance_qa --workers 8 impala   --cls warrior --persona stable --budget 8000   # IMPALA, 액터=게임 인스턴스
+python -m balance_qa --workers 8 impala   --cls warrior --persona stable --budget 8000   # IMPALA (트리거 구간 모드), 액터=게임 인스턴스
+python -m balance_qa --workers 8 bandit   --combos warrior:forest_wolf_king mage:forest_wolf_king --persona stable --budget 8000 --levels potions_ratio=0,0.333,0.667,1   # IMPALA 컨텍스트 밴딧
 python -m balance_qa --game 127.0.0.1:7777,127.0.0.1:7778 optimize ...       # 이미 떠 있는 게임(Unity)
 python -m balance_qa --workers 8 --game-cmd "Game.exe -batchmode -qaPort {port}" optimize ...
 python -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]  # 플레이 모드 적합성 (LLM 없음)
 python -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run> --llm openai --model qwen2.5:14b   # 각자 LLM (또는 llm.json). --llm anthropic 은 Python ≥3.10 venv
 python -m play_agent relay --game 127.0.0.1:7800 --loadout reports/<run>  # Claude Code 세션이 플레이어 (API 없음): 이후 step <tool> '<json>' 로 한 행동씩, finish 로 저장
-python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game ...]       # E0~E7
+python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game ... | --game-cmd ...]   # E0~E8 (E8 = e8_bandit)
 ```
 
 **학습 결과 화면으로 보기**: `venv\Scripts\python.exe run/run_watch.py` (PyCharm `00c`) — 학습 없이 reports/ 최근 CMA-ES·IMPALA 결과와 손 튜닝을 같은 seed 로 Unity 창 3개에 나란히 재생.
@@ -75,7 +76,7 @@ CLI 옵션을 추가·변경하면 해당 `run/*.py` 설정 블록도 같이 맞
 ## 코드 규칙
 
 - 모듈별 폴더 + 객체지향. 확장 지점은 추상 클래스:
-  게임 `NeedFunction`, `Block` / 학습 `ParamSource`, `Optimizer`, `CandidateDecoder`, `EpisodeRunner` / 플레이 `LlmBackend`.
+  게임 `NeedFunction`, `Block` / 학습 `ParamSource`, `Optimizer`, `CandidateDecoder`, `EpisodeRunner`, `ContextSampler`(밴딧 학습 판 분포) / 플레이 `LlmBackend`.
 - CLI·실험 스크립트는 `balance_qa.session.QASession` 만 거쳐서 쓴다.
 - **게임 결정성**: 판의 모든 난수는 `CombatSim.rng`(seed) 하나. 전역 난수 금지. 같은 seed·params·트리거 응답 → 같은 결과.
 - 최적화기 난수는 `backend.generator(seed)` 의 `torch.Generator` 만.
@@ -98,6 +99,7 @@ CLI 옵션을 추가·변경하면 해당 `run/*.py` 설정 블록도 같이 맞
 ## RL = IMPALA (사용자 결정)
 
 - RL 은 **IMPALA** 로 한다 (`balance_qa/rl`). REINFORCE/PPO 등 다른 RL 을 새로 추가하지 않는다.
+- **방향 = 컨텍스트 밴딧** (사용자 결정 2026-11-23): 판 시작에 한 번, 컨텍스트(조합·페르소나·시작 상태)를 보고 블록 가중치를 고른다. 설계 `docs/BANDIT_IMPALA_DESIGN.md` — **구현됨** (`bandit` 명령, `rl/bandit.py`, E8). 판 하나 = 길이 1 궤적, 시작 상태 = 프로토콜 v1.4 `run_episode.initial_state` (게임이 `describe.initial_state` 로 선언한 키만 보낸다). 트리거 구간 모드(`impala`)는 비교용으로 유지.
 - 액터 = 게임 인스턴스 1개 전담. 위치는 `--actors`: **processes**(기본, 로컬 액터 프로세스 N개) / threads / **external**(학습기 `--listen` 대기, 액터는 `python -m balance_qa actor --learner ...` 로 접속 — 클라우드 대비). 상세 `docs/DISTRIBUTED.md`.
 - 액터 실행 로직은 `rl/actor.py: ActorCore` 하나로 모든 모드가 공유한다. 학습기 ↔ 액터 메시지는 `rl/wire.py` (게임 프로토콜과 별개).
 - 최종 목표는 클라우드 (사용자 계획). 지금은 로컬에서 돌리되, 학습기·액터를 같은 프로세스 메모리에 묶는 코드를 새로 만들지 않는다.

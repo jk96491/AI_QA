@@ -21,6 +21,7 @@ from btqa_game import (
     ScenarioDecl,
     TriggerChannel,
     TriggerDecl,
+    InitialStateDecl,
 )
 from btqa_game.protocol import ProtocolError
 from game_sim.bt.agent import strategy_blocks
@@ -57,6 +58,13 @@ def class_decl(spec: ClassSpec) -> ClassDecl:
     )
 
 
+#: v1.4 받을 수 있는 판 시작 상태. 자원은 직업마다 시작값이 달라(전사 0, 마법사 가득) 하나의 default 로 못 둬서 뺐다.
+INITIAL_STATE = (
+    InitialStateDecl("hp_ratio", 0.05, 1.0, 1.0, "판 시작 체력 / 최대 체력"),
+    InitialStateDecl("potions_ratio", 0.0, 1.0, 1.0, "판 시작 물약 = round(비율 × 직업 물약 수), 0.5 올림"),
+)
+
+
 class GameSimHost(EpisodeHost):
     def __init__(self, repo: SpecRepository, sim_config: Optional[SimConfig] = None) -> None:
         self.repo = repo
@@ -78,6 +86,7 @@ class GameSimHost(EpisodeHost):
                 triggers=TriggerDecl("boss_hp_below", tuple(boss.phase_thresholds),
                                      tuple(TRIGGER_STATE_FEATURES), tuple(TRIGGER_TOTALS_FIELDS)),
                 result_fields=RESULT_FIELDS,
+                initial_state=INITIAL_STATE,
             )
         return self._decl
 
@@ -90,7 +99,8 @@ class GameSimHost(EpisodeHost):
             return triggers.fire(index, state, totals)
 
         try:
-            sim = CombatSim(spec, boss, request.params, request.seed, cfg, request.thresholds, on_trigger)
+            sim = CombatSim(spec, boss, request.params, request.seed, cfg, request.thresholds, on_trigger,
+                            initial_state=request.initial_state)
             result = sim.run()
         except ParamError as exc:
             raise ProtocolError(exc.code, str(exc))

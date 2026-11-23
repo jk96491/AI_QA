@@ -26,6 +26,7 @@ from balance_qa.core.types import GameError
 from balance_qa.optim.trainer import GenerationRecord, TrainingResult
 from balance_qa.reward.reward import RewardFunction
 from balance_qa.rl.actor import ActorParamSource, InvalidEpisode, ParameterServer
+from balance_qa.rl.bandit import BanditParamSource, BanditSetup, ContextCell
 from balance_qa.rl.backends import ActorBackend, ActorContext
 from balance_qa.rl.learner import ImpalaLearner, LearnerConfig
 from balance_qa.rl.model import ActorCritic
@@ -75,7 +76,12 @@ class ImpalaTrainer:
         seeds: SeedPool = TRAIN_SEEDS,
         game: Tuple[str, str] = ("", ""),
         on_log: Optional[Callable[[GenerationRecord], None]] = None,
+        bandit: Optional[BanditSetup] = None,
     ) -> None:
+        """bandit 을 주면 컨텍스트 밴딧 모드: 판 시작 1회 결정, 관측 = 컨텍스트 인코딩, 트리거 없음 (rl/bandit.py)."""
+        self.bandit = bandit
+        if bandit is not None:
+            thresholds = ()
         self.backend = backend
         self.class_name = class_name
         self.scenario = scenario
@@ -87,7 +93,7 @@ class ImpalaTrainer:
         self.cfg = config or ImpalaConfig()
         self.seeds = seeds
         self.on_log = on_log
-        self.obs_dim = len(self.state_features) + 1  # + 트리거 진행도
+        self.obs_dim = bandit.encoder.dim if bandit is not None else len(self.state_features) + 1  # + 트리거 진행도
         self.model = ActorCritic(self.obs_dim, space.dim, self.cfg.hidden, seed=self.cfg.seed)
         start = {d.name: d.default for d in space.defs}
         start.update({k: v for k, v in (init_params or self.fixed).items() if k in start})
@@ -97,10 +103,17 @@ class ImpalaTrainer:
             thresholds=self.thresholds, obs_dim=self.obs_dim, act_dim=space.dim, hidden=tuple(self.cfg.hidden),
             persona=_persona_dict(reward_fn), time_limit=reward_fn.time_limit, state_features=self.state_features,
             sample_seed=self.cfg.seed, game=game[0], game_version=game[1],
+            extra={"bandit": bandit.to_wire()} if bandit is not None else {},
         )
 
+    def bandit_source(self, cell: ContextCell) -> BanditParamSource:
+        """밴딧 평가용: 컨텍스트 하나에 대한 결정론적(Beta 평균) 가중치."""
+        if self.bandit is None:
+            raise RuntimeError("밴딧 모드가 아님")
+        return BanditParamSource(self.model, self.space, self.bandit, cell, rng=None)
+
     def eval_source(self) -> ActorParamSource:
-        """평가용: 결정론적(Beta 평균) 정책."""
+        """평가용: 결정론적(Beta 평균) 정책 (트리거 구간 모드)."""
         return ActorParamSource(self.model, self.space, self.fixed, self.thresholds, rng=None, record=False,
                                 state_features=self.state_features)
 

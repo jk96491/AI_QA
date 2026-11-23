@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from balance_qa.analysis.evaluator import EvaluationSummary, Evaluator
 from balance_qa.backend import configure_threads
@@ -35,6 +35,7 @@ from balance_qa.optim.random_search import RandomSearch
 from balance_qa.optim.trainer import GenerationRecord, Trainer, TrainerConfig, TrainingResult
 from balance_qa.reward.reward import RewardFunction
 from balance_qa.rl.backends import ActorBackend, RemoteActorBackend, ThreadActorBackend
+from balance_qa.rl.bandit import BanditSetup, ContextCell, ContextEncoder, MixedContextSampler, StateRange, bandit_policy_source
 from balance_qa.rl.impala import ImpalaConfig, ImpalaTrainer
 from balance_qa.rl.learner import LearnerConfig
 from balance_qa.rl.model import ActorCritic
@@ -57,6 +58,7 @@ class OptimizationOutcome:
     training: TrainingResult
     evaluation: EvaluationSummary
     model: Optional[ActorCritic] = None   # IMPALA 일 때 학습된 Actor-Critic
+    combos: Optional[List[Tuple[str, str]]] = None   # 컨텍스트 밴딧: 학습한 (class, scenario) 전부
 
     @property
     def params(self) -> Optional[Dict[str, float]]:
@@ -72,6 +74,8 @@ class OptimizationOutcome:
             "scenario": self.scenario,
             "source": self.source.describe(),
         }
+        if self.combos:
+            payload["combos"] = [list(c) for c in self.combos]
         if game is not None:
             payload["game"] = {"name": game.game, "version": game.game_version, "protocol": game.protocol_version}
             payload["trigger_type"] = game.trigger_type
@@ -82,6 +86,27 @@ class OptimizationOutcome:
             payload["policy_theta"] = self.training.recommendation.tolist()
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         return path
+
+
+class _BanditFileSource(ParamSource):
+    """policy.json 저장용 (describe 만 쓴다)."""
+
+    def __init__(self, desc: Dict[str, object]) -> None:
+        self._desc = desc
+
+    def base_params(self) -> Dict[str, float]:
+        return {}
+
+    def describe(self) -> Dict[str, object]:
+        return dict(self._desc)
+
+
+@dataclass
+class BanditOutcome:
+    outcome: OptimizationOutcome                       # save_params → policy.json (source.type = impala-bandit)
+    setup: BanditSetup
+    trainer: ImpalaTrainer                             # bandit_source(cell) 로 다른 칸도 평가 가능
+    cells: List[Tuple[ContextCell, EvaluationSummary]]
 
 
 def print_impala_progress(rec: GenerationRecord) -> None:
@@ -202,17 +227,19 @@ class QASession:
         label: Optional[str] = None,
         source: Optional[ParamSource] = None,
         seed_offset: int = 0,
+        initial_state: Optional[Mapping[str, float]] = None,
     ) -> EvaluationSummary:
         src = source or StaticParamSource(self.base_params(cls, pid, params))
         return self.evaluator.evaluate(
             label or "%s/%s" % (cls, pid), cls, self.scenario(scenario), src,
-            EVAL_SEEDS.batch(seed_offset, n), self.reward_fn(pid),
+            EVAL_SEEDS.batch(seed_offset, n), self.reward_fn(pid), initial_state=initial_state,
         )
 
     # ------------------------------------------------------------------ 학습 공통
-    def _trainer(self, cls: str, pid: str, scenario: str, cfg: TrainerConfig, verbose: bool) -> Trainer:
+    def _trainer(self, cls: str, pid: str, scenario: str, cfg: TrainerConfig, verbose: bool,
+                 initial_state_fn: Optional[Callable[[int], Optional[Dict[str, float]]]] = None) -> Trainer:
         return Trainer(self.pool, cls, scenario, self.reward_fn(pid), cfg, TRAIN_SEEDS,
-                       on_generation=print_progress if verbose else None)
+                       on_generation=print_progress if verbose else None, initial_state_fn=initial_state_fn)
 
     # ------------------------------------------------------------------ 판당 1회 파라미터 최적화
     @staticmethod
@@ -238,7 +265,16 @@ class QASession:
         params_to_optimize: Optional[Sequence[str]] = None,
         fixed_overrides: Optional[Mapping[str, float]] = None,
         verbose: bool = True,
+        initial_state: Optional[Mapping[str, float]] = None,
+        initial_state_fn: Optional[Callable[[int], Optional[Dict[str, float]]]] = None,
     ) -> OptimizationOutcome:
+        """initial_state: 학습·평가 판을 이 시작 상태로 (CMA-셀별 기준선). initial_state_fn(seed): 판마다 다른 시작 상태
+        (CMA-전역 기준선 — 밴딧과 같은 분포). 둘 다 프로토콜 v1.4 (docs/BANDIT_IMPALA_DESIGN.md 6장)."""
+        if initial_state and initial_state_fn:
+            raise ValueError("initial_state 와 initial_state_fn 중 하나만")
+        if initial_state:
+            fixed_state = dict(initial_state)
+            initial_state_fn = lambda seed: fixed_state  # noqa: E731
         sc = self.scenario(scenario)
         space = self.class_info(cls).learnable_space(params_to_optimize or None)
         decoder = StaticDecoder(space, self.base_params(cls, pid, fixed_overrides))
@@ -246,9 +282,11 @@ class QASession:
         if verbose:
             print("[optimize] %s/%s %s dim=%d pop=%d budget=%d k=%d games=%d"
                   % (cls, pid, method, space.dim, optimizer.popsize, budget, k, self.pool.size))
-        result = self._trainer(cls, pid, sc, TrainerConfig(budget=budget, episodes_per_candidate=k), verbose).train(optimizer, decoder)
+        result = self._trainer(cls, pid, sc, TrainerConfig(budget=budget, episodes_per_candidate=k), verbose,
+                               initial_state_fn).train(optimizer, decoder)
         source = decoder.decode(result.recommendation)
-        summary = self.evaluate(cls, pid, n=eval_n, scenario=sc, label="%s/%s %s" % (cls, pid, method), source=source)
+        summary = self.evaluate(cls, pid, n=eval_n, scenario=sc, label="%s/%s %s" % (cls, pid, method), source=source,
+                                initial_state=initial_state)
         return OptimizationOutcome(cls, pid, method, sc, source, result, summary)
 
     # ------------------------------------------------------------------ 결정 트리거 정책 학습 (9장)
@@ -291,6 +329,133 @@ class QASession:
         return OptimizationOutcome(cls, pid, "policy-es", sc, source, result, summary)
 
     # ------------------------------------------------------------------ IMPALA (비동기 액터-학습기 + V-trace)
+    def _actor_backend(self, actors: str, listen: Tuple[str, int], token: Optional[str], verbose: bool) -> ActorBackend:
+        def announce(addr: Tuple[str, int]) -> None:
+            if verbose and actors == "external":
+                print("  학습기 대기 중: %s:%d — 액터 실행: python -m balance_qa --game <게임> actor --learner <이 주소>%s"
+                      % (addr[0], addr[1], " --token <토큰>" if token else ""), flush=True)
+
+        if actors == "threads":
+            return ThreadActorBackend(self.pool.clients)
+        if actors == "processes":
+            return RemoteActorBackend(listen, game_endpoints=self.pool.endpoints, token=token, on_listen=announce)
+        if actors == "external":
+            return RemoteActorBackend(listen, game_endpoints=None, token=token, on_listen=announce)
+        raise ValueError("actors 는 processes | threads | external")
+
+    # ------------------------------------------------------------------ 컨텍스트 밴딧 (판 시작 1회 결정)
+    def bandit_setup(
+        self,
+        combos: Sequence[Tuple[str, str]],
+        pid: str,
+        p_full: float = 0.4,
+        levels: Optional[Mapping[str, Sequence[float]]] = None,
+        states: Optional[Sequence[str]] = None,
+    ) -> BanditSetup:
+        """컨텍스트 = 조합(원-핫) + 게임이 선언한 판 시작 상태(describe.initial_state). states 로 그 부분집합만 쓸 수 있다."""
+        combos = [(str(c), self.scenario(s)) for c, s in combos]
+        names = [self.class_info(c).weight_names for c, _ in combos]
+        if any(n != names[0] for n in names):
+            raise ValueError("조합마다 블록 가중치 이름이 다름 %s — 정책 하나로 묶을 수 없음" % names)
+        decl = list(self.game.initial_state)
+        if states is not None:
+            unknown = [s for s in states if s not in {d.name for d in decl}]
+            if unknown:
+                raise ValueError("게임이 선언하지 않은 시작 상태 %s (선언: %s)" % (unknown, [d.name for d in decl]))
+            decl = [d for d in decl if d.name in states]
+        lv = {k: tuple(float(x) for x in v) for k, v in (levels or {}).items()}
+        ranges = [StateRange(d.name, d.low, d.high, d.default, lv.get(d.name)) for d in decl]
+        classes = sorted({c for c, _ in combos})
+        scenarios = sorted({s for _, s in combos})
+        return BanditSetup(
+            encoder=ContextEncoder(classes, scenarios, ranges),
+            sampler=MixedContextSampler(combos, ranges, p_full=p_full if ranges else 1.0),
+            fixed_by_class={c: self.base_params(c, pid) for c in classes},
+        )
+
+    def evaluate_cells(
+        self,
+        cells: Sequence[ContextCell],
+        pid: str,
+        source_for: Callable[[ContextCell], ParamSource],
+        n: int = 100,
+        label: str = "",
+    ) -> List[Tuple[ContextCell, EvaluationSummary]]:
+        """컨텍스트 칸마다 평가 시드 n 판 (같은 시드 → 방법끼리 짝지은 비교)."""
+        out = []
+        for cell in cells:
+            s = self.evaluate(cell.class_name, pid, n=n, scenario=cell.scenario, source=source_for(cell),
+                              label="%s %s" % (label, cell.label), initial_state=cell.state_dict())
+            out.append((cell, s))
+        return out
+
+    def train_bandit(
+        self,
+        combos: Sequence[Tuple[str, str]],
+        pid: str,
+        budget: int = 6000,
+        batch_size: int = 32,
+        hidden: Sequence[int] = (64, 64),
+        lr: float = 3e-3,
+        entropy_coef: float = 3e-3,
+        concentration: float = 10.0,
+        p_full: float = 0.4,
+        levels: Optional[Mapping[str, Sequence[float]]] = None,
+        states: Optional[Sequence[str]] = None,
+        seed: int = 0,
+        eval_n: int = 100,
+        eval_levels: Optional[Mapping[str, Sequence[float]]] = None,
+        log_every: int = 10,
+        actors: str = "processes",
+        listen: Tuple[str, int] = ("127.0.0.1", 0),
+        token: Optional[str] = None,
+        idle_timeout: float = 300.0,
+        verbose: bool = True,
+    ) -> "BanditOutcome":
+        """IMPALA 컨텍스트 밴딧 (docs/BANDIT_IMPALA_DESIGN.md). 판 하나 = 길이 1 궤적, 보상 = 판 보상."""
+        setup = self.bandit_setup(combos, pid, p_full=p_full, levels=levels, states=states)
+        first_cls, first_sc = setup.sampler.combos[0]
+        space = self.class_info(first_cls).learnable_space()
+        cfg = ImpalaConfig(
+            budget=budget, batch_size=batch_size, hidden=tuple(hidden), concentration=concentration,
+            log_every=log_every, seed=seed, idle_timeout=idle_timeout,
+            learner=LearnerConfig(lr=lr, gamma=1.0, entropy_coef=entropy_coef),
+        )
+        backend = self._actor_backend(actors, listen, token, verbose)
+        fixed = setup.fixed_by_class[first_cls]
+        trainer = ImpalaTrainer(
+            backend, first_cls, first_sc, self.reward_fn(pid), space, fixed, (),
+            state_features=self.game.state_features, config=cfg, init_params=fixed,
+            game=(self.game.game, self.game.game_version),
+            on_log=print_impala_progress if verbose else None, bandit=setup,
+        )
+        if verbose:
+            print("[bandit] %s %s %r outputs=%s context=%s p_full=%.2f budget=%d batch=%d actors=%s(%d)"
+                  % (["%s/%s" % c for c in setup.sampler.combos], pid, trainer.model, list(space.names),
+                     setup.encoder.to_wire()["layout"] + " " + str([s.name for s in setup.encoder.states]),
+                     setup.sampler.p_full, budget, batch_size, actors, backend.n_actors))
+        suspended = False
+        if actors == "processes":
+            self.pool.suspend()
+            suspended = True
+        try:
+            result = trainer.train()
+        finally:
+            if suspended:
+                self.pool.resume()
+        if verbose:
+            print("  완료: 판 %d (무효 %d), 갱신 %d" % (result.episodes_used, result.invalid_episodes, result.updates))
+        cells = setup.cells_grid(eval_levels)
+        evals = self.evaluate_cells(cells, pid, trainer.bandit_source, n=eval_n, label="bandit") if eval_n > 0 else []
+        source = _BanditFileSource(bandit_policy_source(trainer.model, space, setup))
+        label = "+".join(sorted({c for c, _ in setup.sampler.combos}))
+        scen = "+".join(sorted({s for _, s in setup.sampler.combos}))
+        summary = evals[0][1] if evals else self.evaluate(first_cls, pid, n=1, scenario=first_sc,
+                                                          source=trainer.bandit_source(ContextCell(first_cls, first_sc)))
+        outcome = OptimizationOutcome(label, pid, "impala-bandit", scen, source, result.training, summary, result.model,
+                                      combos=list(setup.sampler.combos))
+        return BanditOutcome(outcome, setup, trainer, evals)
+
     def train_impala(
         self,
         cls: str,
@@ -337,20 +502,8 @@ class QASession:
             learner=LearnerConfig(lr=lr, gamma=gamma, entropy_coef=entropy_coef),
         )
 
-        def announce(addr: Tuple[str, int]) -> None:
-            if verbose and actors == "external":
-                print("  학습기 대기 중: %s:%d — 액터 실행: python -m balance_qa --game <게임> actor --learner <이 주소>%s"
-                      % (addr[0], addr[1], " --token <토큰>" if token else ""), flush=True)
-
+        backend = self._actor_backend(actors, listen, token, verbose)
         suspended = False
-        if actors == "threads":
-            backend: ActorBackend = ThreadActorBackend(self.pool.clients)
-        elif actors == "processes":
-            backend = RemoteActorBackend(listen, game_endpoints=self.pool.endpoints, token=token, on_listen=announce)
-        elif actors == "external":
-            backend = RemoteActorBackend(listen, game_endpoints=None, token=token, on_listen=announce)
-        else:
-            raise ValueError("actors 는 processes | threads | external")
 
         trainer = ImpalaTrainer(
             backend, cls, sc, self.reward_fn(pid), space, fixed,

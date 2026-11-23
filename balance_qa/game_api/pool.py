@@ -43,7 +43,7 @@ class GamePool(EpisodeRunner):
     def _run_one(self, job: EpisodeJob) -> EpisodeResult:
         client = self._idle.get()
         try:
-            req = EpisodeRequest(job.class_name, job.seed, job.scenario, job.record_events)
+            req = EpisodeRequest(job.class_name, job.seed, job.scenario, job.record_events, job.initial_state)
             try:
                 return client.run_episode(req, job.source)
             except GameError:

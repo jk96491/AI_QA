@@ -69,7 +69,10 @@ class Trainer:
         config: Optional[TrainerConfig] = None,
         seeds: SeedPool = TRAIN_SEEDS,
         on_generation: Optional[Callable[[GenerationRecord], None]] = None,
+        initial_state_fn: Optional[Callable[[int], Optional[Dict[str, float]]]] = None,
     ) -> None:
+        """initial_state_fn(seed) → 그 판의 시작 상태 (v1.4). 없으면 가득. 컨텍스트 밴딧 기준선(CMA-셀별·CMA-전역)용."""
+        self.initial_state_fn = initial_state_fn
         self.runner = runner
         self.class_name = class_name
         self.scenario = scenario
@@ -80,7 +83,8 @@ class Trainer:
 
     def _jobs(self, sources: List[ParamSource], seeds: List[int]) -> List[EpisodeJob]:
         return [
-            EpisodeJob(self.class_name, self.scenario, seed, src)
+            EpisodeJob(self.class_name, self.scenario, seed, src,
+                       initial_state=self.initial_state_fn(seed) if self.initial_state_fn else None)
             for src in sources
             for seed in seeds
         ]

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
-PROTOCOL_VERSION = "1.3"  # 1.1: trigger.totals / 1.2: result.stalled / 1.3: classes[].blocks (같은 주 버전 1.x 게임과 호환)
+PROTOCOL_VERSION = "1.4"  # 1.1: trigger.totals / 1.2: result.stalled / 1.3: classes[].blocks / 1.4: run_episode.initial_state (같은 주 버전 1.x 게임과 호환)
 CLIENT_NAME = "balance_qa"
 
 # 학습 → 게임

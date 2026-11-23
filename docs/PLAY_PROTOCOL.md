@@ -331,6 +331,7 @@ LLM 연결 방식 (사용자 결정 2026-11-22, 2026-11-23 갱신): **본체 = �
 |---|---|
 | `client.py: PlayClient` | 이 프로토콜 클라이언트. `act()` 는 `action_result` 까지 읽으며 전투 메시지를 모으고 `trigger` 는 응답기로 즉답 |
 | `loadout.py: LoadoutBuilder` | `reports/*/params.json`(CMA) / `policy.json`(IMPALA) → `set_loadout` 항목. 키 = (class, scenario). 게임 버전이 다르면 경고 |
+| `responder.py: BanditPolicy` | IMPALA 컨텍스트 밴딧 `policy.json`(`source.type = impala-bandit`) — (class, scenario, 시작 상태) → 가중치. 필드 전투에서는 **트리거 index 0 state**(`potions_ratio = carried / cap` 등)로 고르고 이후 트리거에는 `{}`. 로드아웃: 조합마다 항목, 경계 `[0.5]` (`docs/BANDIT_IMPALA_DESIGN.md`) |
 | `responder.py: CombatResponder` | `trigger` 에 즉답 (LLM 거치지 않음). IMPALA `policy.json` 의 `policy_theta` 를 **numpy 순전파**(Beta 평균, `mode: mean`). 학습 쪽 torch 순전파와 같은 출력인지 테스트로 고정 |
 | `llm/: LlmBackend` | LLM 확장 지점. `AnthropicBackend`(Claude API: `claude-opus-5-5`, `output_config.effort`, 프롬프트 캐싱, `tool_choice: auto` + `strict: true`) / `OpenAICompatBackend`(`/v1/chat/completions` function calling, urllib). 설정 `llm.json` + CLI |
 | `pilot.py: LlmPilot` | 백엔드와 무관한 수동 tool use 루프 (시스템 프롬프트·도구 고정, LLM 텍스트 → `pilot_note`). 전투는 도구 실행 안에서 끝나고 `combat_ended` 요약이 도구 결과에 들어간다. 행동 수·진척 없음·토큰 상한 |

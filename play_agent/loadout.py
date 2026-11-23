@@ -3,6 +3,8 @@
 - CMA-ES 등 고정 파라미터(source.type == "static"): params = source.params, 트리거 없음
 - IMPALA(source.type == "impala-actor-critic"): params = source.fixed(판 시작값), triggers = source.thresholds,
   트리거 응답 = ImpalaPolicy (CombatResponder 에 등록)
+- IMPALA 밴딧(source.type == "impala-bandit"): 학습한 조합마다 항목 1개, params = 직업 판 파라미터 + 가득 찬 시작의 가중치,
+  triggers = [0.5] (index 0 만 쓰려고), 트리거 0 응답 = 그 조우의 시작 상태(state)로 고른 가중치 (BanditBinding)
 - 키 = (class, scenario). 같은 키가 두 번 오면 나중 것이 이긴다 (notes 에 기록)
 
 학습 쪽 코드를 import 하지 않고 파일만 읽는다.
@@ -14,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
-from play_agent.responder import CombatResponder, ImpalaPolicy
+from play_agent.responder import BanditPolicy, CombatResponder, ImpalaPolicy
 
 Key = Tuple[str, str]
 RESULT_FILES = ("policy.json", "params.json")
@@ -31,7 +33,7 @@ class LoadoutEntry:
     method: str = ""
     persona: str = ""
     game_version: str = ""
-    policy: Optional[ImpalaPolicy] = None
+    policy: Optional[Any] = None   # ImpalaPolicy 또는 BanditBinding
 
     @property
     def key(self) -> Key:
@@ -60,11 +62,31 @@ class LoadoutBuilder:
                     return self.add_file(path / name)
             raise FileNotFoundError("%s 에 %s 없음" % (path, " / ".join(RESULT_FILES)))
         d = json.loads(path.read_text(encoding="utf-8"))
-        entry = self.entry_from_dict(d, label=_label(path))
-        if entry.key in self.entries:
-            self.notes.append("%s/%s: %s 를 %s 로 덮어씀" % (entry.cls, entry.scenario, self.entries[entry.key].source, entry.source))
-        self.entries[entry.key] = entry
-        return entry
+        entries = self.entries_from_dict(d, label=_label(path))
+        for entry in entries:
+            if entry.key in self.entries:
+                self.notes.append("%s/%s: %s 를 %s 로 덮어씀" % (entry.cls, entry.scenario, self.entries[entry.key].source, entry.source))
+            self.entries[entry.key] = entry
+        return entries[0]
+
+    @classmethod
+    def entries_from_dict(cls, d: Mapping[str, Any], label: str = "") -> List[LoadoutEntry]:
+        """결과 파일 1개 → 항목들 (밴딧은 학습한 조합마다 1개, 나머지는 1개)."""
+        src = d.get("source") or {}
+        if src.get("type") != "impala-bandit":
+            return [cls.entry_from_dict(d, label)]
+        pol = BanditPolicy.from_dict(d, label=label)
+        method = str(d.get("method", "impala-bandit"))
+        combos = [tuple(c) for c in d.get("combos") or pol.combos]
+        out = []
+        for c, s in combos:
+            b = pol.bind(c, s)
+            out.append(LoadoutEntry(cls=c, scenario=s, params=dict(b.fixed), triggers=list(b.thresholds), policy=b,
+                                    source="%s (%s)" % (label, method) if label else method, method=method,
+                                    persona=str(d.get("persona", "")),
+                                    game_version=str((d.get("game") or {}).get("version", "")),
+                                    trigger_type=str(d.get("trigger_type") or "boss_hp_below")))
+        return out
 
     @staticmethod
     def entry_from_dict(d: Mapping[str, Any], label: str = "") -> LoadoutEntry:
@@ -121,7 +143,7 @@ class LoadoutBuilder:
                 problems.append("%s/%s: 게임에 scenario 없음" % e.key)
             if gv and e.game_version and e.game_version != gv:
                 self.notes.append("%s/%s: 학습 빌드 %s ≠ 플레이 빌드 %s (데이터가 바뀌었으면 다시 학습)" % (e.cls, e.scenario, e.game_version, gv))
-            if e.policy is not None and feats and e.policy.state_features != feats:
+            if e.policy is not None and feats and e.policy.state_features is not None and e.policy.state_features != feats:
                 problems.append("%s/%s: 정책 관측 키 %s ≠ 게임 trigger_state_features %s" % (e.cls, e.scenario, e.policy.state_features, feats))
         return problems
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -60,8 +60,10 @@ class Evaluator:
     def __init__(self, runner: EpisodeRunner) -> None:
         self.runner = runner
 
-    def run(self, class_name: str, scenario: str, source: ParamSource, seeds: Sequence[int]) -> List[EpisodeResult]:
-        return self.runner.run([EpisodeJob(class_name, scenario, s, source) for s in seeds])
+    def run(self, class_name: str, scenario: str, source: ParamSource, seeds: Sequence[int],
+            initial_state: Optional[Mapping[str, float]] = None) -> List[EpisodeResult]:
+        st = dict(initial_state) if initial_state else None
+        return self.runner.run([EpisodeJob(class_name, scenario, s, source, initial_state=st) for s in seeds])
 
     def summarize(self, label: str, results: Sequence[EpisodeResult], reward_fn: RewardFunction) -> EvaluationSummary:
         tl = reward_fn.time_limit
@@ -113,5 +115,6 @@ class Evaluator:
         source: ParamSource,
         seeds: Sequence[int],
         reward_fn: RewardFunction,
+        initial_state: Optional[Mapping[str, float]] = None,
     ) -> EvaluationSummary:
-        return self.summarize(label, self.run(class_name, scenario, source, seeds), reward_fn)
+        return self.summarize(label, self.run(class_name, scenario, source, seeds, initial_state), reward_fn)

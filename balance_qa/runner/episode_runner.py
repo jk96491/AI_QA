@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from balance_qa.control.param_source import ParamSource
 from balance_qa.core.types import EpisodeResult
@@ -19,6 +19,7 @@ class EpisodeJob:
     seed: int
     source: ParamSource
     record_events: bool = False
+    initial_state: Optional[Dict[str, float]] = None   # v1.4 판 시작 상태
 
 
 class EpisodeRunner(ABC):

@@ -19,6 +19,7 @@ from balance_qa.backend import POLICY_DTYPE
 from balance_qa.control.param_source import ParamSource
 from balance_qa.core.types import GameError, TriggerState
 from balance_qa.game_api.client import EpisodeRequest, GameClient
+from balance_qa.rl.bandit import BanditParamSource, BanditSetup
 from balance_qa.rl.model import U_EPS, ActorCritic
 from balance_qa.rl.spec import ActorSpec
 from balance_qa.rl.trajectory import SegmentRewards, Step, Trajectory
@@ -144,6 +145,7 @@ class ActorCore:
         self.model.eval()
         self.space = spec.space()
         self.rewards = SegmentRewards(spec.reward_fn())
+        self.bandit = BanditSetup.from_wire(spec.extra["bandit"]) if spec.extra.get("bandit") else None
         self.version = -1
         self.episodes = 0
         self.invalid = 0
@@ -159,6 +161,8 @@ class ActorCore:
 
     def run(self, seed: int) -> EpisodeItem:
         """판 1개. GameError(요청 자체 오류)는 호출부로 올린다."""
+        if self.bandit is not None:
+            return self._run_bandit(seed)
         rng = np.random.default_rng([self.spec.sample_seed, int(seed)])
         src = ActorParamSource(self.model, self.space, self.spec.fixed, self.spec.thresholds, rng=rng)
         try:
@@ -177,6 +181,32 @@ class ActorCore:
         if traj is None:
             self.invalid += 1
             return InvalidEpisode(seed, result.invalid_reason or "no triggers")
+        return traj
+
+
+    def _run_bandit(self, seed: int) -> EpisodeItem:
+        """컨텍스트 밴딧: seed 로 컨텍스트를 뽑고, 정책이 고른 가중치로 판 1개 (트리거 없음) → 길이 1 궤적."""
+        assert self.bandit is not None
+        rng = np.random.default_rng([self.spec.sample_seed, int(seed)])
+        cell = self.bandit.sampler.sample(rng)
+        src = BanditParamSource(self.model, self.space, self.bandit, cell, rng=rng)
+        req = EpisodeRequest(cell.class_name, seed, cell.scenario, initial_state=cell.state_dict())
+        try:
+            result = self.client.run_episode(req, src)
+        except GameError:
+            raise
+        except (OSError, ConnectionError) as exc:
+            self.invalid += 1
+            try:
+                self.client.connect()
+            except OSError:
+                pass
+            return InvalidEpisode(seed, "connection: %s" % exc)
+        self.episodes += 1
+        traj = self.rewards.build([src.step], result, self.version)
+        if traj is None:
+            self.invalid += 1
+            return InvalidEpisode(seed, result.invalid_reason or "invalid")
         return traj
 
 

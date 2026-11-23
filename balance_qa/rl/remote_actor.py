@@ -32,7 +32,16 @@ def check_compatible(spec: ActorSpec, client: GameClient) -> List[str]:
         problems.append("게임에 scenario %r 없음" % spec.scenario)
     if tuple(d.state_features) != tuple(spec.state_features):
         problems.append("state_features 불일치: 게임 %s / 학습기 %s" % (list(d.state_features), list(spec.state_features)))
-    if not d.supports_segment_rewards:
+    bandit = spec.extra.get("bandit")
+    if bandit:   # 컨텍스트 밴딧: 모든 조합 + 판 시작 상태 선언 필요, 구간 보상(totals)은 불필요
+        for cls, sc in bandit["sampler"].get("combos", []):
+            if cls not in d.classes or sc not in d.scenarios:
+                problems.append("게임에 조합 %s/%s 없음" % (cls, sc))
+        declared = {s.name for s in d.initial_state}
+        missing = [s["name"] for s in bandit["sampler"].get("states", []) if s["name"] not in declared]
+        if missing:
+            problems.append("게임이 initial_state %s 를 선언하지 않음 (프로토콜 v1.4 필요)" % missing)
+    elif not d.supports_segment_rewards:
         problems.append("게임이 trigger.totals 를 보내지 않음 (프로토콜 v1.1 필요)")
     if abs(d.time_limit - spec.time_limit) > 1e-6:
         problems.append("time_limit 불일치: 게임 %s / 학습기 %s" % (d.time_limit, spec.time_limit))

@@ -1,6 +1,6 @@
 # BT-QA Game SDK 와 이 저장소
 
-게임 연동 SDK 의 **원본은 별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** 다 (사용자 결정 2026-11-23, 0.1.0 = `5627219`). 이 저장소는 원본을 참조하지 않고 **사본만** 쓴다.
+게임 연동 SDK 의 **원본은 별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** 다 (사용자 결정 2026-11-23, 0.1.0 = `5627219`, **0.2.0 = `6c71e4c`** 프로토콜 1.4 `run_episode.initial_state`). 이 저장소는 원본을 참조하지 않고 **사본만** 쓴다.
 SDK 가이드·변경 이력·자체 테스트는 SDK 레포에 있다 (`README.md`, `docs/SDK.md`, `CHANGELOG.md`, `tests/`).
 
 ## 사본 3개
@@ -9,7 +9,7 @@ SDK 가이드·변경 이력·자체 테스트는 SDK 레포에 있다 (`README.
 |---|---|---|
 | `btqa_game/` | `python/btqa_game/` | `game_sim` (서버·세션·정의서 선언·검증). `python -m btqa_game check --game HOST:PORT` 로 적합성 검사도 됨 |
 | `unity_game/Packages/com.btqa.game/` | `unity/com.btqa.game/` | QaArena — Unity embedded 패키지 (manifest 항목 없음, lock `source: embedded`) |
-| `docs/PROTOCOL.md` | `docs/PROTOCOL.md` | 계약 v1.3 — 이 저장소 문서·코드 주석이 가리키는 곳 |
+| `docs/PROTOCOL.md` | `docs/PROTOCOL.md` | 계약 v1.4 — 이 저장소 문서·코드 주석이 가리키는 곳 |
 
 - **사본은 직접 고치지 않는다.** SDK 레포에서 고친 뒤 `venv\Scripts\python.exe run/run_sync_sdk.py` 로 복사한다 (Unity 패키지가 바뀌었으면 Unity 재빌드).
   `--check` = 비교만, `--sdk <경로>` 또는 환경변수 `BTQA_SDK` = SDK 레포 위치 (기본: 이 저장소 안 `btqa_sdk/`, `.gitignore` 로 제외됨).

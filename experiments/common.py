@@ -29,6 +29,7 @@ def parse_args(description: str, extra: Optional[Callable[[argparse.ArgumentPars
     p = argparse.ArgumentParser(description=description)
     p.add_argument("--workers", type=int, default=4, help="자동 실행할 게임 대역 인스턴스 수")
     p.add_argument("--game", default=None, help="이미 떠 있는 게임 HOST:PORT[,..] (Unity 빌드 등)")
+    p.add_argument("--game-cmd", default=None, help="게임 실행 명령 템플릿 ({port} 자동), --workers 개 띄움 (Unity 헤드리스 등)")
     p.add_argument("--quick", action="store_true", help="작은 규모로 빠르게 (동작 확인용)")
     p.add_argument("--out", default="reports")
     p.add_argument("--seed", type=int, default=0)
@@ -47,6 +48,10 @@ def parse_args(description: str, extra: Optional[Callable[[argparse.ArgumentPars
 def session(args: argparse.Namespace) -> QASession:
     if args.game:
         return QASession(endpoints=[parse_endpoint(e) for e in args.game.split(",") if e.strip()])
+    if getattr(args, "game_cmd", None):
+        import shlex
+
+        return QASession(game_command=shlex.split(args.game_cmd, posix=False), spawn=args.workers)
     return QASession(spawn_local=args.workers)
 
 

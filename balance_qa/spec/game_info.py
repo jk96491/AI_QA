@@ -96,6 +96,22 @@ class ClassInfo:
 
 
 @dataclass(frozen=True)
+class InitialStateInfo:
+    """v1.4 describe.initial_state 항목: run_episode.initial_state 로 정할 수 있는 판 시작 상태 (0~1 비율)."""
+
+    name: str
+    low: float
+    high: float
+    default: float
+    description: str = ""
+
+    @classmethod
+    def from_wire(cls, d: Mapping[str, Any]) -> "InitialStateInfo":
+        lo, hi = d["range"]
+        return cls(str(d["name"]), float(lo), float(hi), float(d.get("default", 1.0)), str(d.get("description", "")))
+
+
+@dataclass(frozen=True)
 class GameDescription:
     protocol_version: str
     game: str
@@ -110,6 +126,7 @@ class GameDescription:
     decision_interval: float = 0.0
     totals_fields: Tuple[str, ...] = ()   # v1.1: trigger.totals 키 (비어 있으면 구간 보상 불가)
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+    initial_state: Tuple[InitialStateInfo, ...] = ()   # v1.4: 정할 수 있는 판 시작 상태 (없으면 보내지 않는다)
 
     REQUIRED = ("protocol_version", "game", "time_limit", "max_deaths", "classes", "scenarios", "triggers")
 
@@ -133,6 +150,7 @@ class GameDescription:
             decision_interval=float(d.get("decision_interval", 0.0)),
             totals_fields=tuple(str(f) for f in trig.get("totals", [])),
             raw=dict(d),
+            initial_state=tuple(InitialStateInfo.from_wire(s) for s in d.get("initial_state") or []),
         )
 
     #: 구간 보상(IMPALA)에 필요한 누적값 키
@@ -141,6 +159,19 @@ class GameDescription:
     @property
     def supports_segment_rewards(self) -> bool:
         return all(k in self.totals_fields for k in self.REQUIRED_TOTALS)
+
+    def check_initial_state(self, state: Mapping[str, float]) -> None:
+        """보내기 전 검사. 게임이 선언하지 않은 키는 1.3 게임이 조용히 무시하므로 여기서 막는다 (PROTOCOL 4.3.1)."""
+        decls = {s.name: s for s in self.initial_state}
+        if not decls:
+            raise ValueError("게임 %s %s 가 initial_state 를 선언하지 않음 (프로토콜 v1.4 필요) — 판 시작 상태를 바꿀 수 없다"
+                             % (self.game, self.game_version))
+        for k, v in state.items():
+            s = decls.get(k)
+            if s is None:
+                raise ValueError("initial_state.%s 는 게임이 선언하지 않음 (선언: %s)" % (k, sorted(decls)))
+            if not (s.low - 1e-9 <= float(v) <= s.high + 1e-9):
+                raise ValueError("initial_state.%s=%g 가 범위 [%g, %g] 밖" % (k, v, s.low, s.high))
 
     def class_info(self, name: str) -> ClassInfo:
         if name not in self.classes:

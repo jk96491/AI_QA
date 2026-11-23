@@ -25,6 +25,7 @@ class EpisodeRequest:
     seed: int
     scenario: str = "base"
     record_events: bool = False
+    initial_state: Optional[Dict[str, float]] = None   # v1.4 판 시작 상태 (None = 가득, 1.3 과 같은 판)
 
 
 class GameClient:
@@ -140,6 +141,9 @@ class GameClient:
             msg["triggers"] = {desc.trigger_type: list(source.trigger_thresholds)}   # 키 = describe.triggers.type
         if req.record_events:
             msg["record_events"] = True
+        if req.initial_state:
+            desc.check_initial_state(req.initial_state)
+            msg["initial_state"] = {k: float(v) for k, v in req.initial_state.items()}
         self._send(msg)
         while True:
             reply = self._recv()

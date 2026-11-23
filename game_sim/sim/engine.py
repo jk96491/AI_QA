@@ -44,6 +44,7 @@ class CombatSim:
         config: Optional[SimConfig] = None,
         triggers: Sequence[float] = (),
         on_trigger: Optional[TriggerHandler] = None,
+        initial_state: Optional[Mapping[str, float]] = None,
     ) -> None:
         self.cfg = config or SimConfig()
         self.class_spec = class_spec
@@ -56,6 +57,11 @@ class CombatSim:
         self.log = EventLog(self.cfg.record_events)
 
         self.player = Player(class_spec, self.cfg.gcd)
+        if initial_state:   # 프로토콜 v1.4 판 시작 상태 (없으면 가득 찬 상태 = 1.3 과 같은 판)
+            if "hp_ratio" in initial_state:
+                self.player.hp = self.player.max_hp * float(initial_state["hp_ratio"])
+            if "potions_ratio" in initial_state:
+                self.player.potions = int(float(initial_state["potions_ratio"]) * class_spec.stats.potions + 0.5)
         self.boss = Boss(boss_spec, self.rng)
         self.agent = BTAgent(class_spec)
         self.distance = self.cfg.start_distance

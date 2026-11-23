@@ -243,6 +243,29 @@ class ConformanceChecker:
 
         self._check("오류 후 연결 유지", alive_after_errors)
 
+        if d.initial_state:   # v1.4 판 시작 상태 (컨텍스트 밴딧용, docs/PROTOCOL.md 4.3.1)
+            full = {s.name: s.default for s in d.initial_state}
+            low = {s.name: s.low for s in d.initial_state}
+            defaults = d.classes[cls].default_params()
+
+            def init_default() -> str:
+                a = c.run_episode(EpisodeRequest(cls, CHECK_SEED), StaticParamSource(defaults)).to_dict()
+                b = c.run_episode(EpisodeRequest(cls, CHECK_SEED, initial_state=full), StaticParamSource(defaults)).to_dict()
+                assert a == b, "initial_state = 선언 default 이면 생략한 판과 같은 결과여야 함"
+                return "ok"
+
+            def init_determinism() -> str:
+                a = c.run_episode(EpisodeRequest(cls, CHECK_SEED + 4, initial_state=low), StaticParamSource(defaults)).to_dict()
+                b = c.run_episode(EpisodeRequest(cls, CHECK_SEED + 4, initial_state=low), StaticParamSource(defaults)).to_dict()
+                assert a == b, "같은 seed·params·initial_state 인데 결과가 다름"
+                return "동일 (%s)" % low
+
+            self._check("initial_state = default → 생략과 같은 결과 (v1.4)", init_default)
+            self._check("initial_state 결정성 (v1.4, 밴딧 학습 가능)", init_determinism)
+        else:
+            self._check("initial_state 선언 (v1.4, 컨텍스트 밴딧의 시작 상태)", lambda: (_ for _ in ()).throw(
+                AssertionError("describe.initial_state 없음 — 밴딧은 조합만 컨텍스트로 쓴다")), required=False)
+
         def scenarios() -> str:
             for sc in d.scenarios:
                 c.run_episode(EpisodeRequest(cls, 3, scenario=sc), StaticParamSource({}))

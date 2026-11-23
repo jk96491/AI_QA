@@ -13,6 +13,8 @@ python -m balance_qa --workers 4 optimize    --cls mage --persona stable --budge
 python -m balance_qa --workers 4 policy      --cls warrior --persona stable --budget 6000
 python -m balance_qa --workers 8 impala      --cls warrior --persona stable --budget 8000          # 로컬 액터 프로세스 8개
 python -m balance_qa --workers 1 impala --actors external --listen 0.0.0.0:7000 --token T ...      # 클라우드: 액터 접속 대기
+python -m balance_qa --workers 8 bandit --combos warrior:forest_wolf_king mage:forest_wolf_king --persona stable \
+    --budget 8000 --levels potions_ratio=0,0.333,0.667,1                                          # 컨텍스트 밴딧 (판 시작 1회 결정)
 python -m balance_qa --game 10.0.0.7:7777 actor --learner 10.0.0.5:7000 --token T                # 액터 (각 머신)
 python -m balance_qa --workers 4 sensitivity --cls archer --persona stable -n 100
 """
@@ -152,6 +154,64 @@ def cmd_impala(args: argparse.Namespace, s: QASession) -> None:
     print("리포트:", path)
 
 
+def _parse_levels(items: Optional[List[str]]) -> Dict[str, List[float]]:
+    """['potions_ratio=0,0.333,1', 'hp_ratio=1,0.4'] → {name: [값...]}"""
+    out: Dict[str, List[float]] = {}
+    for it in items or []:
+        name, _, vals = it.partition("=")
+        if not vals:
+            raise SystemExit("--levels 형식: 이름=값,값,... (받은 %r)" % it)
+        out[name.strip()] = [float(v) for v in vals.split(",") if v.strip()]
+    return out
+
+
+def _parse_combos(items: List[str]) -> List[tuple]:
+    out = []
+    for it in items:
+        cls, _, sc = it.partition(":")
+        out.append((cls.strip(), (sc or "base").strip()))
+    return out
+
+
+def cmd_bandit(args: argparse.Namespace, s: QASession) -> None:
+    combos = _parse_combos(args.combos)
+    if not s.game.initial_state:
+        print("[알림] 게임 %s %s 가 describe.initial_state 를 선언하지 않음 (프로토콜 v1.4) — 컨텍스트 = 조합만"
+              % (s.game.game, s.game.game_version))
+    out = s.train_bandit(combos, args.persona, budget=args.budget, batch_size=args.batch, hidden=tuple(args.hidden),
+                         lr=args.lr, entropy_coef=args.entropy, concentration=args.concentration, p_full=args.p_full,
+                         levels=_parse_levels(args.levels), states=args.states, seed=args.seed, eval_n=args.eval_n,
+                         eval_levels=_parse_levels(args.eval_levels) or None, log_every=args.log_every,
+                         actors=args.actors, listen=parse_endpoint(args.listen), token=args.token,
+                         idle_timeout=args.idle_timeout)
+    rows = []
+    for cell, ev in out.cells:
+        w = out.trainer.bandit_source(cell).weights
+        base = None
+        if not args.no_baseline:
+            base = s.evaluate(cell.class_name, args.persona, n=args.eval_n, scenario=cell.scenario,
+                              label="손튜닝 %s" % cell.label, initial_state=cell.state_dict())
+        rows.append([cell.label, base.row()["clear_rate"] if base else "-", ev.row()["clear_rate"],
+                     base.row()["reward"] if base else "-", ev.row()["reward"],
+                     ", ".join("%s %.2f" % (k, v) for k, v in w.items())])
+        print("  %-48s 손튜닝 %-18s 밴딧 %-18s %s" % (cell.label, rows[-1][1], rows[-1][2], rows[-1][5]), flush=True)
+    rb = ReportBuilder("IMPALA 밴딧: %s/%s" % ("+".join("%s:%s" % c for c in combos), args.persona), args.out)
+    rb.meta(game="%s %s" % (s.game.game, s.game.game_version), actor_mode=args.actors, budget=args.budget,
+            batch=args.batch, hidden=args.hidden, lr=args.lr, entropy=args.entropy, p_full=args.p_full,
+            context=out.setup.encoder.to_wire())
+    rb.section("칸별 평가 (평가 시드 %d판씩, 평균 [95%% CI])" % args.eval_n)
+    rb.table(["컨텍스트", "손튜닝 클리어", "밴딧 클리어", "손튜닝 보상", "밴딧 보상", "밴딧 가중치"], rows)
+    outcome_section(rb, out.outcome)
+    path = rb.save()
+    out.outcome.save_params(path / "policy.json", s.game)
+    import torch
+
+    m = out.trainer.model
+    torch.save({"state_dict": m.state_dict(), "obs_dim": m.obs_dim, "act_dim": m.act_dim, "hidden": list(m.hidden),
+                "bandit": out.setup.to_wire()}, str(path / "impala_model.pt"))
+    print("리포트:", path)
+
+
 def cmd_sensitivity(args: argparse.Namespace, s: QASession) -> None:
     info = s.class_info(args.cls)
     base = s.base_params(args.cls, args.persona, _load_params(args.params))
@@ -263,6 +323,28 @@ def build_parser() -> argparse.ArgumentParser:
     im.add_argument("--token", default=None, help="액터 접속 토큰 (external 에서 권장)")
     im.add_argument("--idle-timeout", type=float, default=300.0, help="이 시간(초) 동안 판이 안 오면 중단")
 
+    bd = sub.add_parser("bandit", help="IMPALA 컨텍스트 밴딧: 판 시작 상황(조합·시작 상태) → 블록 가중치 (docs/BANDIT_IMPALA_DESIGN.md)")
+    bd.add_argument("--combos", nargs="+", required=True, help="class:scenario … (scenario 생략 = base)")
+    bd.add_argument("--persona", required=True)
+    bd.add_argument("--budget", type=int, default=6000, help="총 판수")
+    bd.add_argument("--batch", type=int, default=32, help="갱신당 판 수 (밴딧은 분산이 커서 기본 32)")
+    bd.add_argument("--hidden", type=int, nargs="+", default=[64, 64])
+    bd.add_argument("--lr", type=float, default=3e-3)
+    bd.add_argument("--entropy", type=float, default=3e-3)
+    bd.add_argument("--concentration", type=float, default=10.0)
+    bd.add_argument("--p-full", type=float, default=0.4, help="가득 찬 시작(initial_state 없음)으로 뽑을 확률")
+    bd.add_argument("--levels", nargs="*", help="학습 시작 상태를 이 값들 중에서만: 이름=값,값 (예 potions_ratio=0,0.333,0.667,1)")
+    bd.add_argument("--states", nargs="*", help="쓸 시작 상태 이름 (기본: 게임이 선언한 전부)")
+    bd.add_argument("--eval-n", type=int, default=100, help="평가 칸마다 판수")
+    bd.add_argument("--eval-levels", nargs="*", help="평가 격자: 이름=값,값 (기본: levels 또는 범위 양 끝)")
+    bd.add_argument("--no-baseline", action="store_true", help="칸별 손 튜닝 평가 생략")
+    bd.add_argument("--log-every", type=int, default=10)
+    bd.add_argument("--seed", type=int, default=0)
+    bd.add_argument("--actors", choices=["processes", "threads", "external"], default="processes")
+    bd.add_argument("--listen", default="127.0.0.1:0")
+    bd.add_argument("--token", default=None)
+    bd.add_argument("--idle-timeout", type=float, default=300.0)
+
     ac = sub.add_parser("actor", help="IMPALA 액터 프로세스: 학습기에 접속해 게임(--game/--game-cmd/대역)에서 판 실행")
     ac.add_argument("--learner", required=True, help="학습기 HOST:PORT")
     ac.add_argument("--actor-id", default=None)
@@ -284,6 +366,7 @@ COMMANDS = {
     "optimize": cmd_optimize,
     "policy": cmd_policy,
     "impala": cmd_impala,
+    "bandit": cmd_bandit,
     "sensitivity": cmd_sensitivity,
 }
 
