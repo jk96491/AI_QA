@@ -4,7 +4,8 @@
 이 게임은 사람이 플레이하는 완성품이 아니라 **학습 플랫폼(`AI_QA/balance_qa`)의 실행 환경**이다.
 아래 규칙은 학습 플랫폼이 수정 없이 붙기 위한 조건이므로 **반드시** 지킨다.
 
-> 기준 문서: `AI_QA/docs/PROTOCOL.md` (v1.2). 이 가이드와 충돌하면 PROTOCOL.md 가 우선.
+> **0.7.0 부터 BT-QA Game SDK 사용 — `SDK_MIGRATION.md` 를 먼저 읽는다** (서버·세션은 SDK, 학습 대상 = 블록 가중치뿐).
+> 기준 문서: `AI_QA/docs/PROTOCOL.md` (v1.3). 이 가이드와 충돌하면 PROTOCOL.md 가 우선.
 > 원문 제안서: `AI_QA/밸런스 QA를 위한 BT 파라미터 최적화 프로세스.pdf`
 
 ---
@@ -28,7 +29,7 @@
   ```
   Assets/
     QA/
-      Protocol/   QaServer, QaSession, 메시지 DTO, 오류 코드        (game_sim/server 대응)
+      Protocol/   QaArenaHost (Btqa.Game.IEpisodeHost), P 상수        (game_sim/server/session.py 대응) — 서버·세션은 SDK
       Sim/        전투 로직 시뮬레이션 (Unity 컴포넌트와 분리)       (game_sim/sim 대응)
       BT/         행동 트리, 필요도 식, 행동 블록, 블랙보드          (game_sim/bt 대응)
       Data/       직업·보스·시나리오 정의 (ScriptableObject 또는 JSON) (game_sim/data 대응)
@@ -77,7 +78,8 @@
 ## 4. 정의서 (`describe` 응답) 규칙
 
 - `time_limit`(초), `max_deaths`, `decision_interval`(BT 결정 주기, 권장 0.3초), `classes`, `scenarios`(`"base"` 필수), `triggers`(`type: "boss_hp_below"`, `supported`, `state_features`, `totals`).
-- `classes[].params[]` 항목: `name, range[low,high], default, group("bt"|"persona"), optimize, unit, description`
+- `classes[].params[]` 항목: `name, range[low,high], default, group("bt"|"persona"), optimize, unit, description` — `optimize` 는 SDK 가 채움 (블록 가중치만 true)
+- `classes[].blocks[]` (v1.3): `{name, weight}` — `BTAgent.StrategyBlocks` 에서 나옴. 학습 대상은 이 가중치뿐
   - `default` = **개발자가 손으로 맞춘 값** (모든 학습 결과의 비교 기준선)
   - `range` = **기획 의도 범위** (최적화는 이 안에서만 탐색)
   - 직업당 학습 대상(`group: bt`) 5~20개. 바꾸면 행동이 눈에 띄게 달라지는 값만 노출.

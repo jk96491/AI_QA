@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 PARAM_GROUPS = ("bt", "persona")
 
@@ -17,6 +17,7 @@ class ParamDef:
     group: str = "bt"          # bt: 학습 대상 BT 값 / persona: 페르소나가 정하는 N 설정값
     unit: str = ""
     description: str = ""
+    explicit_optimize: Optional[bool] = None   # 정의서에 optimize 를 직접 적었을 때만 (SDK 가 '가중치만 학습' 규칙으로 검사)
 
     @classmethod
     def from_dict(cls, name: str, d: Mapping[str, Any]) -> "ParamDef":
@@ -31,6 +32,7 @@ class ParamDef:
             group=group,
             unit=str(d.get("unit", "")),
             description=str(d.get("description", "")),
+            explicit_optimize=None if "optimize" not in d else bool(d["optimize"]),
         )
 
     @property
@@ -42,5 +44,6 @@ class ParamDef:
 
     def to_wire(self) -> Dict[str, Any]:
         d = asdict(self)
+        d.pop("explicit_optimize")
         d["range"] = [d.pop("low"), d.pop("high")]
         return d

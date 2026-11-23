@@ -1,5 +1,6 @@
 // set_loadout (PLAY_PROTOCOL 4.3): 전투에서 BT 가 쓸 학습 결과 파라미터. 키 = (class, scenario).
 // 검증은 밸런스 run_episode.params 와 같다 (ClassSpec.ResolveParams → unknown_param / param_out_of_range).
+using Btqa.Game;
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;

@@ -26,6 +26,7 @@ class LoadoutEntry:
     scenario: str
     params: Dict[str, float]
     triggers: Optional[List[float]] = None
+    trigger_type: str = "boss_hp_below"   # 결과 파일의 trigger_type (게임 describe.triggers.type). 없으면 예전 기본값
     source: str = ""
     method: str = ""
     persona: str = ""
@@ -41,7 +42,7 @@ class LoadoutEntry:
         if boss:
             d["boss"] = boss
         if self.triggers:
-            d["triggers"] = {"boss_hp_below": list(self.triggers)}
+            d["triggers"] = {self.trigger_type: list(self.triggers)}
         return d
 
 
@@ -72,7 +73,8 @@ class LoadoutBuilder:
         method = str(d.get("method", ""))
         common = dict(cls=str(d["class"]), scenario=str(d.get("scenario") or "base"),
                       source="%s (%s)" % (label, method) if label else method, method=method,
-                      persona=str(d.get("persona", "")), game_version=str((d.get("game") or {}).get("version", "")))
+                      persona=str(d.get("persona", "")), game_version=str((d.get("game") or {}).get("version", "")),
+                      trigger_type=str(d.get("trigger_type") or "boss_hp_below"))
         if kind == "static":
             return LoadoutEntry(params={k: float(v) for k, v in src["params"].items()}, **common)
         if kind == "impala-actor-critic":

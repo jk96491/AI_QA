@@ -18,7 +18,7 @@ from balance_qa.spec.persona import Persona
 
 
 def make_spec():
-    persona = Persona("stable", "안정형", 0.8, 0.7, 10.0, 0.0)
+    persona = Persona("stable", "안정형", 10.0, 0.0, params={"survival_hp_threshold": 0.8, "dps_hp_floor": 0.7})
     return ActorSpec(
         class_name="warrior", scenario="base",
         params=[ParamDef("w_burst", 0.0, 1.0, 0.6), ParamDef("potion_hp", 0.1, 0.9, 0.5, group="bt", unit="hp")],

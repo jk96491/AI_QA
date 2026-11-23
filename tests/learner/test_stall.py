@@ -9,7 +9,7 @@ from balance_qa.rl.trajectory import SegmentRewards, Step
 from balance_qa.spec.persona import Persona
 
 TL = 600.0
-PERSONA = Persona("p", "테스트", 0.5, 0.4, lambda_death=3.0, lambda_consumable=1.0)
+PERSONA = Persona("p", "테스트", lambda_death=3.0, lambda_consumable=1.0, params={"survival_hp_threshold": 0.5, "dps_hp_floor": 0.4})
 BASE = {"seed": 1, "cleared": False, "elapsed": 200.0, "clear_time": None, "boss_hp_remaining": 0.4, "deaths": 0}
 
 

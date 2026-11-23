@@ -42,15 +42,23 @@ namespace Qa.BT
             }
         }
 
+        /// <summary>전략 선택 노드의 블록 (이름, 가중치 파라미터, 설명). describe 의 classes[].blocks = 학습 대상 가중치 (BT-QA SDK).</summary>
+        public static readonly (string Name, string Weight, string Description)[] StrategyBlocks =
+        {
+            (BurstBlock.Name, "w_burst", "버스트 콤보"),
+            (DpsBlock.Name, "w_dps", "딜 유지"),
+            (SurvivalBlock.Name, "w_survival", "생존 모드"),
+        };
+
         static Node Build(ClassSpec spec)
         {
             var gimmick = new GimmickBlock();
             var utility = new UtilitySelector("strategy", new[]
             {
-                new UtilityOption(BurstBlock.Name, new BurstBlock().Build(), new BurstNeed(), "w_burst"),
-                new UtilityOption(DpsBlock.Name, new DpsBlock().Build(), new DpsNeed(), "w_dps"),
+                new UtilityOption(BurstBlock.Name, new BurstBlock().Build(), new BurstNeed(), StrategyBlocks[0].Weight),
+                new UtilityOption(DpsBlock.Name, new DpsBlock().Build(), new DpsNeed(), StrategyBlocks[1].Weight),
                 // 생존 블록 최대 유지 시간 (정의서 bt_rules): 회복이 안 되는데 생존에 갇혀 멈추는 판 방지
-                new UtilityOption(SurvivalBlock.Name, new SurvivalBlock().Build(), new SurvivalNeed(), "w_survival",
+                new UtilityOption(SurvivalBlock.Name, new SurvivalBlock().Build(), new SurvivalNeed(), StrategyBlocks[2].Weight,
                                   spec.SurvivalMaxHold, spec.SurvivalLockout),
             }, ApproachBlock.Name, new ApproachBlock().Build());
             var forced = new Sequence("forced_gimmick",

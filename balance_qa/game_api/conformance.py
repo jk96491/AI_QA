@@ -31,6 +31,33 @@ class CheckResult:
         return "[%s] %s%s" % (mark, self.name, (" — " + self.detail) if self.detail else "")
 
 
+def protocol_minor(version: str) -> int:
+    try:
+        return int(str(version).split(".")[1])
+    except (IndexError, ValueError):
+        return 0
+
+
+def block_weight_problems(d: GameDescription) -> List[str]:
+    """v1.3 규칙: 직업마다 blocks 선언, 가중치는 group bt·0 이상, optimize=true 는 가중치에만."""
+    out: List[str] = []
+    for name, info in d.classes.items():
+        if not info.blocks_declared:
+            out.append("%s: classes[].blocks 없음" % name)
+        if not info.blocks:
+            out.append("%s: 블록 가중치 없음" % name)
+        for b in info.blocks:
+            p = info.params.get(b.weight)
+            if p is None:
+                out.append("%s: 블록 %s 의 가중치 %r 가 params 에 없음" % (name, b.name, b.weight))
+            elif p.group != "bt" or p.low < 0:
+                out.append("%s.%s: 가중치는 group bt, 범위 0 이상" % (name, p.name))
+        wrong = [p.name for p in info.params.values() if p.optimize != info.is_weight(p.name)]
+        if info.blocks_declared and wrong:
+            out.append("%s: optimize 는 블록 가중치에만 true 여야 함: %s" % (name, wrong))
+    return out
+
+
 class _RecordingSource(ParamSource):
     """트리거를 기록하고, 지정한 파라미터로 응답."""
 
@@ -92,6 +119,13 @@ class ConformanceChecker:
             return self.results
         d = self.desc
         assert d is not None
+
+        def blocks() -> str:
+            problems = block_weight_problems(d)
+            assert not problems, "; ".join(problems)
+            return ", ".join("%s=%s" % (n, i.weight_names) for n, i in d.classes.items())
+
+        self._check("블록 가중치 선언 (v1.3, 학습 대상 = 가중치뿐)", blocks, required=protocol_minor(d.protocol_version) >= 3)
         cls = next(iter(d.classes))
         defaults = d.classes[cls].default_params()
 
@@ -134,8 +168,8 @@ class ConformanceChecker:
 
         def triggers() -> str:
             thresholds = sorted(d.trigger_supported, reverse=True) or [0.5]
-            bt_params = [p for p in d.classes[cls].params.values() if p.group == "bt"]
-            reply = {bt_params[0].name: bt_params[0].default} if bt_params else {}
+            weights = d.classes[cls].weight_names   # 트리거 응답 = 학습 대상(가중치)만
+            reply = {weights[0]: d.classes[cls].params[weights[0]].default} if weights else {}
             src = _RecordingSource({}, thresholds, reply)
             r = c.run_episode(EpisodeRequest(cls, CHECK_SEED), src)
             idx = [s.index for s in src.seen]

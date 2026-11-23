@@ -125,7 +125,8 @@ class GameClient:
     def run_episode(self, req: EpisodeRequest, source: ParamSource) -> EpisodeResult:
         """판 1개 실행. 트리거가 오면 source.on_trigger 로 응답한다."""
         # describe 는 run_episode 를 보내기 *전에* 확보해야 함 (판 진행 중 다른 요청을 끼워 넣으면 응답이 섞임)
-        features: List[str] = list(self.describe().state_features)
+        desc = self.describe()
+        features: List[str] = list(desc.state_features)
         episode_id = "%s#%d" % (self.name, next(_ids))
         msg: Dict[str, Any] = {
             "type": P.RUN_EPISODE,
@@ -136,7 +137,7 @@ class GameClient:
             "params": source.base_params(),
         }
         if source.trigger_thresholds:
-            msg["triggers"] = {"boss_hp_below": list(source.trigger_thresholds)}
+            msg["triggers"] = {desc.trigger_type: list(source.trigger_thresholds)}   # 키 = describe.triggers.type
         if req.record_events:
             msg["record_events"] = True
         self._send(msg)

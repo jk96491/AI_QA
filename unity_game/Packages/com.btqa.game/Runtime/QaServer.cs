@@ -1,4 +1,4 @@
-// TCP 서버 (game_sim/server/server.py 대응). 인스턴스 1개 = 포트 1개 = 동시 연결 1개, 요청은 순차 처리.
+// BT-QA Game SDK — TCP 서버 (Python 판: btqa_game/server.py). 인스턴스 1개 = 포트 1개 = 동시 연결 1개, 요청은 순차 처리.
 // 연결이 끊기거나 bye 를 받으면 다음 연결을 기다린다 (프로세스는 종료하지 않음).
 using System;
 using System.IO;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using Newtonsoft.Json.Linq;
 
-namespace Qa.Protocol
+namespace Btqa.Game
 {
     public sealed class QaServer
     {
@@ -104,11 +104,11 @@ namespace Qa.Protocol
                     }
                     catch (ProtocolException ex)
                     {
-                        ch.Send(P.MakeError(ex.Code, ex.Message));
+                        ch.Send(Wire.MakeError(ex.Code, ex.Message));
                         continue;
                     }
                     if (msg == null) return;        // 연결 종료
-                    bool isEpisode = msg["type"]?.Type == JTokenType.String && (string)msg["type"] == P.RunEpisode;
+                    bool isEpisode = msg["type"]?.Type == JTokenType.String && (string)msg["type"] == Wire.RunEpisode;
                     if (!session.Handle(msg, ch)) return;   // bye
                     if (isEpisode)
                     {

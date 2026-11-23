@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bt-balance-qa"
+version = "0.1.0"
+description = "BT 파라미터 밸런스 QA 학습 플랫폼 (balance_qa·play_agent) + 게임 대역 game_sim + BT-QA Game SDK 사본 btqa_game (원본은 별도 레포)"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.optional-dependencies]
+train = ["numpy>=1.22", "torch>=1.8.1"]   # balance_qa (학습 플랫폼)
+play = ["numpy>=1.22"]                    # play_agent (LLM 실행은 anthropic, Python ≥3.10 별도 venv)
+llm = ["anthropic>=0.40"]
+
+[project.scripts]
+btqa = "balance_qa.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["balance_qa*", "play_agent*", "game_sim*", "btqa_game*"]
+
+[tool.setuptools.package-data]
+game_sim = ["data/**/*.json"]

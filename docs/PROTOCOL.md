@@ -1,11 +1,16 @@
-# 게임 ↔ 학습 플랫폼 프로토콜 v1.2
+# 게임 ↔ 학습 플랫폼 프로토콜 v1.3
 
-> 변경 이력: **1.2** — `result.stalled`, `result.stall_reason` 추가. 멈춘 판은 `invalid` 가 아니라 **실패 판**(4.5). 1.x 와 호환.
+> 변경 이력: **1.3** — `classes[].blocks` (전략 선택 노드의 블록 → 가중치 파라미터) 추가. **학습 대상 = 블록 가중치뿐** (4.2.1).
+> `run_episode.triggers` 의 키 = `describe.triggers.type`. 1.x 와 호환 (1.2 이하 게임은 학습 쪽이 `unit: "weight"` 로 가중치를 추정).
+> **1.2** — `result.stalled`, `result.stall_reason` 추가. 멈춘 판은 `invalid` 가 아니라 **실패 판**(4.5). 1.x 와 호환.
 > **1.1** — `trigger.totals`(판 시작부터의 누적값)와 `describe.triggers.totals` 추가. IMPALA 구간 보상에 필요. 1.0 과 호환(같은 주 버전).
 
 
 학습 플랫폼(`balance_qa`)과 게임(현재 `game_sim` 파이썬 대역, 추후 **Unity 빌드**) 사이의 **유일한 계약**이다.
-게임 구현이 이 문서를 지키고 `python -m balance_qa check-game --game HOST:PORT` 를 통과하면, 학습 쪽 코드는 수정 없이 붙는다.
+게임 구현이 이 문서를 지키고 적합성 검사(`python -m btqa_game check --game HOST:PORT`, 학습 플랫폼 쪽은 `python -m balance_qa check-game`)를 통과하면, 학습 쪽 코드는 수정 없이 붙는다.
+
+**직접 구현하지 않아도 된다**: 게임 쪽 SDK 가 이 문서의 서버·세션·요청 검증·트리거 왕복을 이미 구현한다 —
+BT-QA Game SDK — Python `python/btqa_game`, Unity 패키지 `unity/com.btqa.game` (`docs/SDK.md`). 게임은 정의서 선언과 판 실행만 구현한다.
 
 원문 제안서 대응: 9장 "트리거 발생 → 상태 입력 → 파라미터 출력", 11장 "에피소드 실행 API", 12장 "정의서·에피소드 실행 API" 인터페이스.
 
@@ -16,7 +21,7 @@
 | | 게임 (Unity / game_sim) | 학습 플랫폼 (balance_qa) |
 |---|---|---|
 | 보유 | 전투, **BT**, 직업·스킬·보스 수치, 시나리오(패치) | 최적화기·정책(torch), 페르소나, 보상, 통계, 리포트 |
-| 공개 | 정의서: BT 파라미터 이름·범위·기본값, 트리거 상태 키 | — |
+| 공개 | 정의서: BT 파라미터 이름·범위·기본값, **블록과 그 가중치**, 트리거 상태 키 | — |
 | 실행 | 판(episode)을 seed 로 결정론적으로 끝까지 실행 | 어떤 파라미터로 몇 판 돌릴지 결정 |
 | RL | 게임 인스턴스 = IMPALA **액터의 환경** | 액터 스레드·정책 추론·V-trace 학습기 |
 | 결정 | 300ms 마다 BT 가 행동 결정 (게임 내부) | 판 시작/트리거 때만 **숫자(파라미터)** 를 정함 |
@@ -59,8 +64,8 @@
 ### 4.1 `hello` → `hello_ok`
 
 ```json
-{"type":"hello","protocol_version":"1.2","client":"balance_qa"}
-{"type":"hello_ok","protocol_version":"1.2","game":"game_sim","game_version":"0.4.0"}
+{"type":"hello","protocol_version":"1.3","client":"balance_qa"}
+{"type":"hello_ok","protocol_version":"1.3","game":"game_sim","game_version":"0.5.0"}
 ```
 - 주(major) 버전이 다르면 `error(protocol_version)`.
 
@@ -72,8 +77,8 @@
 ```json
 {
   "type": "description",
-  "protocol_version": "1.2",
-  "game": "game_sim", "game_version": "0.4.0",
+  "protocol_version": "1.3",
+  "game": "game_sim", "game_version": "0.5.0",
   "time_limit": 600.0,
   "max_deaths": 3,
   "decision_interval": 0.3,
@@ -82,7 +87,13 @@
       "name": "mage", "display_name": "마법사", "ranged": true, "spec_version": "0.1",
       "params": [
         {"name":"survival_hp_threshold","range":[0.05,1.0],"default":0.5,"optimize":false,"group":"persona","unit":"hp_ratio","description":"θ ..."},
-        {"name":"w_burst","range":[0.0,1.0],"default":0.6,"optimize":true,"group":"bt","unit":"weight","description":"버스트 블록 가중치"}
+        {"name":"w_burst","range":[0.0,1.0],"default":0.6,"optimize":true,"group":"bt","unit":"weight","description":"버스트 블록 가중치"},
+        {"name":"potion_hp","range":[0.1,0.9],"default":0.45,"optimize":false,"group":"bt","unit":"hp_ratio","description":"물약 체력"}
+      ],
+      "blocks": [
+        {"name":"burst","weight":"w_burst","description":"버스트 콤보"},
+        {"name":"dps","weight":"w_dps"},
+        {"name":"survival","weight":"w_survival"}
       ]
     }
   ],
@@ -102,14 +113,31 @@
 | `time_limit` | O | 판 제한 시간(초). 학습 쪽 중도절단 계산에 사용 |
 | `max_deaths` | O | 이 횟수를 넘겨 사망하면 실패 |
 | `classes[].params[]` | O | BT 파라미터. `default` = **개발팀 손 튜닝 값** (기준선) |
-| `params[].group` | O | `bt`: 학습 대상 / `persona`: 페르소나가 정하는 값 (θ, φ 등) |
-| `params[].optimize` | | 생략 시 `group == "bt"` |
+| `classes[].blocks[]` | v1.3 | 전략 선택 노드(S = N × w)의 블록. `weight` = 그 블록의 가중치 파라미터 이름. **학습 대상은 이것뿐** (4.2.1) |
+| `params[].group` | O | `bt`: BT 값 (블록 가중치 또는 기획이 정하는 설정값) / `persona`: 페르소나 성격값 (θ, φ 등) |
+| `params[].optimize` | | v1.3: **블록 가중치만 true**, 나머지는 false (게임 쪽 SDK 가 자동으로 채움). 학습 쪽은 `blocks` 로 판단한다 |
 | `scenarios` | O | `"base"` 필수. 패치 시나리오 이름 |
 | `triggers.state_features` | O | 트리거 상태 키 순서. **정책 신경망 입력 순서**가 된다 |
 | `triggers.supported` | | 기본 트리거 경계 (보스 체력 비율) |
 | `triggers.totals` | v1.1 | `trigger.totals` 로 보내는 누적값 키. `elapsed`, `deaths`, `consumables_used` 가 있어야 IMPALA 학습 가능 |
 
-필수 BT 파라미터(현재 BT 구조 기준): `survival_hp_threshold`, `dps_hp_floor`(persona), `w_burst`, `w_dps`, `w_survival`, `potion_hp`, `resource_reserve`, `min_commit`(bt). 원거리는 `kite_distance`.
+이름은 학습 쪽에 하드코딩되어 있지 않다. 학습 대상 가중치는 `blocks`, 페르소나 설정값은 `qa_specs/personas.json` 이 이름으로 가리킨다
+(현재 페르소나는 `survival_hp_threshold`, `dps_hp_floor` 를 씀 — 이 두 이름이 없는 게임에는 페르소나 파일을 맞춘다).
+
+#### 4.2.1 학습 대상 규칙 (v1.3, SDK 핵심 규칙)
+
+**학습(CMA-ES·ES 정책·IMPALA)이 정하는 값은 블록 가중치 w 뿐이다.** "BT 구조는 필요한 쪽(게임)이 설계하고, RL 은 그쪽이 선언한 가중치만 학습한다."
+
+| 값 | 누가 정하나 | 예 |
+|---|---|---|
+| 블록 가중치 (`blocks[].weight`) | **학습** (판 시작·트리거마다) | `w_burst`, `w_dps`, `w_survival` |
+| 그 밖의 `group: bt` 값 | 정의서 default (기획 손 튜닝) — 페르소나가 덮어쓸 수 있음 | `potion_hp`, `resource_reserve`, `min_commit` |
+| `group: persona` 값 | 페르소나 | `survival_hp_threshold`(θ), `dps_hp_floor`(φ) |
+
+- 게임은 직업마다 `blocks` 를 1개 이상 선언한다. 가중치 파라미터는 `group: bt`, 범위 0 이상, `unit: weight`, 블록마다 다른 이름.
+- 가중치가 아닌 파라미터에 `optimize: true` 를 두면 규칙 위반이다 (게임 쪽 SDK 가 기동 시 거부, `check-game` FAIL).
+- 페르소나는 가중치를 정할 수 없다 (학습 쪽이 거부).
+- 학습 쪽 `trigger_response.params` 에는 가중치만 들어간다. 게임은 여전히 모든 파라미터 이름을 받아들여야 한다 (평가·재현 요청).
 
 ### 4.3 `run_episode` → (`trigger` ↔ `trigger_response`)* → `episode_result`
 
@@ -133,7 +161,7 @@
 | `scenario` | | 생략 = `"base"`. 없으면 `error(unknown_scenario)` |
 | `seed` | O | **판의 모든 난수는 이 seed 에서만** 나와야 함 (6장) |
 | `params` | | 생략한 파라미터는 정의서 `default`. 모르는 이름 → `error(unknown_param)`, 범위 밖 → `error(param_out_of_range)` |
-| `triggers` | | 없거나 비어 있으면 트리거 없이 판 끝까지 실행 |
+| `triggers` | | `{<describe.triggers.type>: [경계...]}`. 없거나 비어 있으면 트리거 없이 판 끝까지 실행 |
 | `record_events` | | true 면 `result.events` 포함 (리플레이·디버깅) |
 
 ### 4.4 `trigger` / `trigger_response`
@@ -142,7 +170,7 @@
 {"type":"trigger","episode_id":"...#42","index":1,
  "state":{"hp_ratio":0.50,"boss_hp_ratio":0.73,"potions_ratio":1.0,"resource_ratio":0.2,"burst_ready":0.0,"time_ratio":0.11,"deaths_ratio":0.0},
  "totals":{"elapsed":67.8,"deaths":0,"consumables_used":0,"boss_hp_remaining":0.73}}
-{"type":"trigger_response","episode_id":"...#42","index":1,"params":{"w_survival":0.42,"potion_hp":0.55}}
+{"type":"trigger_response","episode_id":"...#42","index":1,"params":{"w_survival":0.42,"w_dps":0.61}}
 ```
 
 규칙:
@@ -247,10 +275,11 @@ Unity 구현 시:
 
 ```bash
 # Unity 빌드를 7777 포트로 띄운 뒤
-python -m balance_qa check-game --game 127.0.0.1:7777
+python -m btqa_game check --game 127.0.0.1:7777          # SDK 의 검사 도구 (표준 라이브러리만)
+python -m balance_qa check-game --game 127.0.0.1:7777     # 학습 플랫폼 쪽 (같은 항목)
 ```
 
-검사 항목: hello · describe 형식 · 기본 파라미터 판 · `params` 생략 = default · **시드 결정성** · seed 변동 · `result.stalled`(v1.2, 경고 항목) ·
+검사 항목: hello · describe 형식 · **블록 가중치 선언**(v1.3 게임은 필수, 1.2 이하는 경고) · 기본 파라미터 판 · `params` 생략 = default · **시드 결정성** · seed 변동 · `result.stalled`(v1.2, 경고 항목) ·
 **트리거 왕복**(index 0 시작, 연속 번호, 상태 키) · **totals 누적값**(v1.1, IMPALA 용, 경고 항목) · 오류 코드 4종 · 오류 후 연결 유지 · 모든 시나리오 실행.
 
 ## 10. 연결 방법 (학습 쪽)
@@ -266,7 +295,7 @@ python -m balance_qa --workers 8 --game-cmd "Build/MyGame.exe -batchmode -nograp
 python -m balance_qa --workers 4 optimize ...
 ```
 
-## 부록 A. Unity C# 구현 뼈대 (참고)
+## 부록 A. Unity C# 구현 뼈대 (참고 — 지금은 SDK 패키지 `com.btqa.game` 을 쓰면 된다, `docs/SDK.md`)
 
 ```csharp
 // QaServer.cs — 헤드리스 빌드에서 시작 시 실행. JSON 은 Newtonsoft.Json 권장 (JsonUtility 는 Dictionary 미지원)

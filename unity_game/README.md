@@ -1,6 +1,6 @@
 # QaArena — 밸런스 QA 테스트용 Unity 게임
 
-학습 플랫폼(`../balance_qa`)이 TCP 프로토콜 v1.2(`../docs/PROTOCOL.md`)로 접속해 수천~수만 판을 돌리는 헤드리스 전투 게임.
+학습 플랫폼(`../balance_qa`)이 TCP 프로토콜 v1.3(`../docs/PROTOCOL.md`, BT-QA Game SDK 사용 — 사본 `Packages/com.btqa.game`, 원본은 별도 SDK 레포 — `SDK_MIGRATION.md`)로 접속해 수천~수만 판을 돌리는 헤드리스 전투 게임.
 로직은 `../game_sim`(파이썬 참조 구현)을 C# 로 옮긴 것이다.
 
 - **Unity**: 6000.0.60f1 (Unity 6 LTS), 스크립팅 백엔드 Mono
@@ -182,7 +182,7 @@ archer 는 여전히 쉬움 (직업 간 불균형 = 밸런스 QA 가 찾아야 �
 ## 코드 구조
 
 ```
-Assets/QA/Protocol   QaServer(TCP), QaSession(메시지 처리), CombatEpisodeRunner(run_episode·트리거)
+Assets/QA/Protocol   QaArenaHost(정의서·run_episode, SDK IEpisodeHost), P(게임 고유 값), CombatEpisodeRunner(플레이용 트리거 도우미). 서버·세션은 SDK
 Assets/QA/Sim        CombatSim(고정 dt 루프), Player, Boss, Rng(xoshiro256**, 판마다 seed 로 1개)
 Assets/QA/BT         노드, Blackboard, 필요도 N, 블록 5종, UtilitySelector(S = N × w), BTAgent
 Assets/QA/Data       정의서 로더·검증 + JSON 데이터

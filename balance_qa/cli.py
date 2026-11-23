@@ -65,9 +65,13 @@ def cmd_list(args: argparse.Namespace, s: QASession) -> None:
     print("시나리오:", ", ".join(g.scenarios))
     for name in s.class_names():
         info = s.class_info(name)
-        print("\n[%s %s] 최적화 파라미터 %d개" % (name, info.display_name, info.optimizable_space().dim))
+        print("\n[%s %s] 학습 대상 = 블록 가중치 %d개%s" % (
+            name, info.display_name, len(info.weight_names), "" if info.blocks_declared else " (v1.2 이하: unit=weight 로 추정)"))
+        for b in info.blocks:
+            print("  블록 %-10s <- %s" % (b.name, b.weight))
         for p in info.params.values():
-            print("  %-22s [%g, %g] default=%-6g %-8s %s" % (p.name, p.low, p.high, p.default, p.group, p.description))
+            role = "학습" if info.is_weight(p.name) else ("페르소나" if p.group == "persona" else "고정")
+            print("  %-22s [%g, %g] default=%-6g %-8s %s" % (p.name, p.low, p.high, p.default, role, p.description))
 
 
 def cmd_evaluate(args: argparse.Namespace, s: QASession) -> None:
@@ -152,7 +156,7 @@ def cmd_sensitivity(args: argparse.Namespace, s: QASession) -> None:
     info = s.class_info(args.cls)
     base = s.base_params(args.cls, args.persona, _load_params(args.params))
     rows = OATSensitivity(s.evaluator).run(
-        args.cls, s.scenario(args.scenario), base, info.optimizable_space(), s.reward_fn(args.persona),
+        args.cls, s.scenario(args.scenario), base, info.bt_space(), s.reward_fn(args.persona),  # 측정: 가중치 + 고정 설정값
         EVAL_SEEDS.first(args.n), levels=args.levels,
     )
     rb = ReportBuilder("민감도(OAT): %s/%s" % (args.cls, args.persona), args.out)

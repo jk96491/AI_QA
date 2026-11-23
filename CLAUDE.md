@@ -2,16 +2,17 @@
 
 원문 제안서 `밸런스 QA를 위한 BT 파라미터 최적화 프로세스.pdf`의 주장을 검증한다.
 **새 세션은 `docs/STATUS.md`(현재 상태·결정 대기·빌드별 측정 이력·다음 할 일)부터 읽는다.** 작업이 끝나면 그 문서를 갱신한다.
-설계 `시뮬레이션_프로토타입_설계.md`, 구조 `docs/ARCHITECTURE.md`, **게임 연동 계약 `docs/PROTOCOL.md`**.
+설계 `시뮬레이션_프로토타입_설계.md`, 구조 `docs/ARCHITECTURE.md`, **게임 연동 계약 `docs/PROTOCOL.md`** (v1.3), **SDK `docs/SDK.md`** (사본·동기화 규칙; SDK 원본은 별도 레포).
 플레이 모드(LLM 비전투 + 학습 BT 전투) 계약 `docs/PLAY_PROTOCOL.md` v0.2 (밸런스 계약과 별개), 클라이언트 `play_agent/`.
 
 ## 구조 (가장 중요)
 
 | 패키지 | 역할 | 금지 |
 |---|---|---|
-| `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터·TCP 프로토콜 서버. 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
-| `balance_qa/` | **학습 플랫폼**: 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim` import |
-| `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.2) | — |
+| `btqa_game/` | **BT-QA Game SDK 사본 (Python)** — 원본은 별도 GitHub 레포 `btqa_sdk`. 서버·세션·정의서 선언·검증·적합성 검사 `python -m btqa_game check`·예제 게임. Unity 사본 `unity_game/Packages/com.btqa.game`, 계약 사본 `docs/PROTOCOL.md`. **사본은 직접 고치지 않는다** — 원본 수정 후 `run/run_sync_sdk.py`. 이 저장소 기준 개요 `docs/SDK.md` | 이 저장소의 다른 패키지 import, `torch`·`numpy` |
+| `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터. 서버는 SDK `btqa_game` 으로 구현 (`GameSimHost`). 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
+| `balance_qa/` | **학습 플랫폼** (SDK 를 쓰는 쪽, 계약만 따름): 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim`, `btqa_game` import |
+| `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.3) | — |
 | `play_agent/` | **플레이 모드 클라이언트**: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot(Claude API)·check-play. 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch` import |
 | `unity_game/` | **실제 테스트 게임 (Unity 프로젝트, 다른 에이전트가 제작 중)**. 제작 규칙 `unity_game/AGENT_GUIDE.md` | 학습 쪽 코드에서 import·경로 의존 금지 (`--game` / `--game-cmd` 로만 연결) |
 
@@ -20,7 +21,7 @@
 - 두 패키지는 프로세스·포트로만 연결된다. `tests/test_independence.py` 가 import 를 검사한다.
 - 게임 데이터(`game_sim/data/`)는 학습 쪽이 직접 읽지 않는다. `describe` 응답으로만 받는다.
 - 페르소나(`qa_specs/personas.json`)는 퍼블리셔 쪽 정의라 학습 쪽에 있다.
-- 프로토콜을 바꾸면: `docs/PROTOCOL.md` → `game_sim/server/*` → `balance_qa/game_api/*` → `ConformanceChecker` 순서로 모두 맞추고 버전 규칙(PROTOCOL 8장)을 지킨다.
+- 프로토콜을 바꾸면: `docs/PROTOCOL.md` → **SDK 원본 레포** (Python `python/btqa_game` + Unity `unity/com.btqa.game/Runtime` + `btqa_game.conformance` 같이, `CHANGELOG.md`) → `run/run_sync_sdk.py` 로 사본 갱신 → `game_sim/server/*` → `balance_qa/game_api/*` → `ConformanceChecker` 순서로 모두 맞추고 버전 규칙(PROTOCOL 8장)을 지킨다. Unity 게임 쪽 변경은 `unity_game/SDK_MIGRATION.md` 같은 기록으로 Unity 에이전트에게 남긴다.
 
 ## 환경 제약
 
@@ -39,6 +40,8 @@
 
 ```bash
 python -m unittest discover -s tests -t .              # 전체 테스트 (game / learner / integration / independence)
+venv\Scripts\python.exe run/run_sync_sdk.py [--check] [--sdk <SDK 레포 경로>]   # SDK 원본 → 사본 (btqa_game/·Unity 패키지·docs/PROTOCOL.md)
+python -m btqa_game check --game 127.0.0.1:7777        # SDK 적합성 검사 (torch 없이, check-game 과 같은 항목)
 python -m game_sim validate                             # 게임 데이터 검사
 python -m game_sim serve --port 7777                    # 게임 대역 서버 단독 실행
 python -m balance_qa check-game [--game 127.0.0.1:7777] # 프로토콜 적합성 검사 (Unity 연결 전 필수)
@@ -77,7 +80,9 @@ CLI 옵션을 추가·변경하면 해당 `run/*.py` 설정 블록도 같이 맞
 
 ## 설계 결정 (원문과 다른 점)
 
-- 페르소나 = N 설정값(θ, φ) + 보상 λ, w 는 최적화 출력. θ·φ 는 게임 정의서에 `group: persona` 로 선언.
+- **학습 대상 = 블록 가중치 w 뿐** (SDK 핵심 규칙, 사용자 결정 2026-11-23). CMA-ES·ES 정책·IMPALA 모두 `ClassInfo.learnable_space()` (게임이 v1.3 `classes[].blocks` 로 선언한 가중치)만 다룬다. 가중치가 아닌 BT 값(`potion_hp` 등)은 정의서 default 또는 페르소나 값으로 고정. 가중치가 아닌 이름을 학습시키려 하면 `ValueError`. w 크기 중복(전체 배율 무관)은 한계로 두고 정규화하지 않는다.
+- 페르소나 = BT 설정값 `params`(가중치가 아닌 값만: θ, φ, 필요하면 행동 임계값) + 보상 λ. **원문 8장과 완전히 같을 필요 없음** (사용자 결정 2026-11-23). 페르소나가 가중치를 정하면 거부. θ·φ 는 게임 정의서에 `group: persona` 로 선언.
+- `run_episode.triggers` 키 = `describe.triggers.type` (학습 쪽 하드코딩 없음).
 - 보상 `R = −분 − λ_death·사망 − λ_consumable·소모품 − F_fail·[클리어 실패]`. F_fail = `qa_specs/personas.json` 최상위 `fail_penalty`(30분, 페르소나 공통·덮어쓰기 가능) — **원문 8장에 없는 항** (사용자 결정 A, 2026-11-22: 없으면 안정형이 '안 죽고 시간 초과'로 클리어를 포기). 구간 보상에서는 마지막 구간에 들어간다.
 - 실패 판 소요 시간 = 경과 + 남은 보스 체력 비율 × 제한 시간 (중도절단).
 - **멈춘 판(stalled, v1.2) = 실패**, 벌점은 시간 초과와 같게 `제한 시간 + 남은 체력 × 제한 시간` (사용자 결정 2026-11-22). `invalid` 는 환경 오류(통신·게임 예외)만 — 학습·평가에서 제외. v1.1 게임의 `invalid` + 사유 `stalled...` 는 `EpisodeResult.from_dict` 가 stalled 로 변환.
@@ -93,7 +98,7 @@ CLI 옵션을 추가·변경하면 해당 `run/*.py` 설정 블록도 같이 맞
 - 최종 목표는 클라우드 (사용자 계획). 지금은 로컬에서 돌리되, 학습기·액터를 같은 프로세스 메모리에 묶는 코드를 새로 만들지 않는다.
 - 구간 보상은 `trigger.totals`(프로토콜 v1.1) 차분. 게임이 totals 를 안 보내면 `train_impala` 가 거부한다.
 - `torch.set_num_threads` 는 프로세스 전역 — 액터 스레드에서 바꾸지 않는다.
-- 기본 하이퍼파라미터: lr 3e-3, batch 16, hidden (64,64), γ 1.0, ρ̄=c̄=1, entropy 3e-3, Beta 초기 집중도 10.
+- 기본 하이퍼파라미터: lr 3e-3, batch 16, hidden (64,64), γ 1.0, ρ̄=c̄=1, entropy 3e-3, Beta 초기 집중도 10. 행동 = 블록 가중치 (QaArena 3개).
   (warrior/stable 1,600판: 448→362s. lr 5e-4 는 정책이 거의 안 움직였고 1e-2 는 엔트로피가 빠르게 붕괴)
 
 ## 스킬

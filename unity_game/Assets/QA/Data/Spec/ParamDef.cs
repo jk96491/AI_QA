@@ -16,6 +16,8 @@ namespace Qa.Data
         public readonly string Group;
         public readonly string Unit;
         public readonly string Description;
+        /// <summary>정의서에 optimize 를 직접 적었을 때만 값 (BT-QA SDK 가 '가중치만 학습' 규칙으로 검사). null = 적지 않음.</summary>
+        public bool? ExplicitOptimize { get; private set; }
 
         public ParamDef(string name, double low, double high, double @default, bool optimize,
                         string group, string unit, string description)
@@ -30,7 +32,7 @@ namespace Qa.Data
             if (!(d["range"] is JArray range) || range.Count != 2)
                 throw new SpecException(src, "range 는 [low, high]");
             var group = SpecJson.Str(d, "group", GroupBt);
-            return new ParamDef(
+            var def = new ParamDef(
                 name,
                 range[0].Value<double>(),
                 range[1].Value<double>(),
@@ -39,6 +41,8 @@ namespace Qa.Data
                 group,
                 SpecJson.Str(d, "unit", ""),
                 SpecJson.Str(d, "description", ""));
+            if (d["optimize"] != null) def.ExplicitOptimize = SpecJson.Bool(d, "optimize", false);
+            return def;
         }
 
         public bool Contains(double v, double tol = 1e-9) => Low - tol <= v && v <= High + tol;

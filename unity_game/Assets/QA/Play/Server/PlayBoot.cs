@@ -1,5 +1,6 @@
 // 플레이 모드 진입점: QaArena.exe -qaPlay -qaPort 7800 [-qaPlaySeed 1] [-qaPlaySpeed 1] [-qaPlayOmniscient]
 // -qaPlay 가 없으면 아무것도 하지 않는다 (밸런스 QA 모드는 QaBoot 가 그대로 처리).
+using Btqa.Game;
 using System;
 using System.Collections.Generic;
 using System.Globalization;

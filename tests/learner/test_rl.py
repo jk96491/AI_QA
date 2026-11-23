@@ -14,7 +14,7 @@ from balance_qa.rl.vtrace import vtrace
 from balance_qa.spec.param import ParamDef, ParamSpace
 from balance_qa.spec.persona import Persona
 
-PERSONA = Persona("p", "테스트", 0.5, 0.4, lambda_death=3.0, lambda_consumable=1.0)
+PERSONA = Persona("p", "테스트", lambda_death=3.0, lambda_consumable=1.0, params={"survival_hp_threshold": 0.5, "dps_hp_floor": 0.4})
 TL = 600.0
 
 

@@ -20,7 +20,7 @@ def main() -> None:
         sens = OATSensitivity(s.evaluator)
         summary_rows = []
         for c in CLASSES:
-            space = s.class_info(c).optimizable_space()
+            space = s.class_info(c).bt_space()  # sensitivity: weights + fixed settings (measurement, not learning)
             base = s.base_params(c, args.persona)
             reward = s.reward_fn(args.persona)
             rows = sens.run(c, "base", base, space, reward, seeds)

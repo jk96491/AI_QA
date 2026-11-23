@@ -2,6 +2,7 @@
 // 소켓 읽기는 이 스레드, 메시지 처리·송신은 메인 스레드(PlaySession.Pump) — Unity API(uGUI·EventSystem)가 메인 스레드 전용이라서.
 // 이 스레드는 받은 줄을 계속 Inbox 에 넣는다 (전투 중 trigger_response 를 받아야 하므로 요청 완료를 기다리지 않음).
 // 송신은 메인 스레드만 한다 (JSON 파싱 오류도 Inbox 로 넘겨 메인 스레드가 보냄 → 쓰기 경합 없음).
+using Btqa.Game;
 using System;
 using System.Collections.Concurrent;
 using System.IO;

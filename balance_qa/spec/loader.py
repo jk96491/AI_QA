@@ -28,10 +28,6 @@ class PersonaRepository:
     @staticmethod
     def validate(p: Persona) -> List[str]:
         problems: List[str] = []
-        for key in ("survival_hp_threshold", "dps_hp_floor"):
-            v = getattr(p, key)
-            if not (0.0 < v <= 1.0):
-                problems.append("%s: %s 는 (0, 1]" % (p.id, key))
         if p.lambda_death < 0 or p.lambda_consumable < 0:
             problems.append("%s: λ 는 0 이상" % p.id)
         if p.fail_penalty < 0:
@@ -66,11 +62,13 @@ class PersonaRepository:
 
     @staticmethod
     def check_against(persona: Persona, info: ClassInfo) -> List[str]:
-        """페르소나 설정값이 게임 정의서 파라미터로 존재하고 범위 안인지."""
+        """페르소나 설정값이 게임 정의서 파라미터로 존재하고, 가중치가 아니며, 범위 안인지."""
         problems = []
-        for k, v in persona.need_params().items():
+        for k, v in persona.settings().items():
             if k not in info.params:
-                problems.append("%s: 게임 class %r 에 페르소나 파라미터 %r 없음" % (persona.id, info.name, k))
+                problems.append("%s: 게임 class %r 에 파라미터 %r 없음" % (persona.id, info.name, k))
+            elif info.is_weight(k):
+                problems.append("%s: %r 는 블록 가중치 — 페르소나가 정할 수 없음 (가중치는 학습 대상)" % (persona.id, k))
             elif not (info.params[k].low <= v <= info.params[k].high):
                 problems.append("%s: %s=%g 가 게임 범위 밖" % (persona.id, k, v))
         return problems

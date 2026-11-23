@@ -13,7 +13,7 @@ from balance_qa.spec.loader import PersonaRepository, SpecError
 from balance_qa.spec.persona import DEFAULT_FAIL_PENALTY, Persona
 
 TL = 600.0
-STABLE = Persona("stable", "안정형", 0.8, 0.7, lambda_death=10.0, lambda_consumable=0.0)
+STABLE = Persona("stable", "안정형", lambda_death=10.0, lambda_consumable=0.0, params={"survival_hp_threshold": 0.8, "dps_hp_floor": 0.7})
 
 
 def res(cleared, elapsed, boss, deaths):
@@ -36,7 +36,7 @@ class FailPenaltyTest(unittest.TestCase):
         self.assertGreater(rf(res(True, 450.0, 0.0, 2)), rf(res(False, TL, 0.4, 0)))
 
     def test_zero_penalty_restores_original_formula(self):
-        p = Persona("x", "x", 0.5, 0.4, 3.0, 1.0, fail_penalty=0.0)
+        p = Persona("x", "x", 3.0, 1.0, params={"survival_hp_threshold": 0.5, "dps_hp_floor": 0.4}, fail_penalty=0.0)
         self.assertAlmostEqual(RewardFunction(p, TL)(res(False, TL, 0.5, 1)), -(TL + 0.5 * TL) / 60.0 - 3.0)
 
     def test_segments_put_penalty_on_last_step(self):

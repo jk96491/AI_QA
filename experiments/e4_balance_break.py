@@ -26,7 +26,7 @@ def main() -> None:
             cut = 1 - out.evaluation.effective_time.estimate / hand.effective_time.estimate
             edge = [
                 n for n, d in info.params.items()
-                if d.optimize and min(abs(out.params[n] - d.low), abs(out.params[n] - d.high)) < 0.02 * d.span
+                if info.is_weight(n) and min(abs(out.params[n] - d.low), abs(out.params[n] - d.high)) < 0.02 * d.span
             ]
             rows.append([c, "%.1f" % hand.effective_time.estimate, "%.1f" % out.evaluation.effective_time.estimate,
                          "%.1f%%" % (100 * cut), "붕괴 후보" if cut >= args.threshold else "-", ", ".join(edge) or "-"])

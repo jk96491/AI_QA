@@ -2,6 +2,7 @@
 //   hello, play_describe, set_loadout, reset, observe, act, get_log, bye
 //   act 중 전투: combat_started → (trigger ↔ trigger_response)* → combat_ended → action_result. 전투 중 다른 요청 → error(busy)
 // 세계 정지: 시간은 act 처리 중 ActionRunner.Tick 에서만 흐른다. 응답을 보낸 뒤 다음 요청까지 아무것도 Step 하지 않는다.
+using Btqa.Game;
 using System;
 using System.Collections.Generic;
 using System.IO;

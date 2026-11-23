@@ -43,8 +43,8 @@ from balance_qa.spec.game_info import ClassInfo, GameDescription
 from balance_qa.spec.loader import QA_SPECS_DIR, PersonaRepository, SpecError
 from balance_qa.spec.persona import Persona
 
-# 트리거 정책이 구간마다 바꾸는 '전략' 파라미터 (나머지는 고정)
-DEFAULT_POLICY_OUTPUTS = ("w_burst", "w_dps", "w_survival", "potion_hp", "resource_reserve")
+# 학습 대상 = 게임이 선언한 블록 가중치뿐 (SDK 규칙). CMA-ES·ES 정책·IMPALA 모두 info.learnable_space() 만 쓴다.
+# 가중치가 아닌 BT 값은 정의서 default 또는 페르소나 params 로 고정된다.
 
 
 @dataclass
@@ -74,6 +74,10 @@ class OptimizationOutcome:
         }
         if game is not None:
             payload["game"] = {"name": game.game, "version": game.game_version, "protocol": game.protocol_version}
+            payload["trigger_type"] = game.trigger_type
+            info = game.classes.get(self.class_name)
+            if info is not None:
+                payload["learned"] = info.weight_names   # 학습한 값 = 블록 가중치뿐 (나머지는 default·페르소나 고정값)
         if not isinstance(self.source, StaticParamSource):
             payload["policy_theta"] = self.training.recommendation.tolist()
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -182,7 +186,7 @@ class QASession:
         if problems:
             raise SpecError("persona/%s vs game/%s" % (pid, cls), problems)
         params = info.default_params()
-        params.update(persona.need_params())
+        params.update(persona.settings())
         if overrides:
             params.update({k: v for k, v in overrides.items() if k in info.params})
         return params
@@ -236,9 +240,7 @@ class QASession:
         verbose: bool = True,
     ) -> OptimizationOutcome:
         sc = self.scenario(scenario)
-        space = self.class_info(cls).optimizable_space()
-        if params_to_optimize:
-            space = space.subset(params_to_optimize)
+        space = self.class_info(cls).learnable_space(params_to_optimize or None)
         decoder = StaticDecoder(space, self.base_params(cls, pid, fixed_overrides))
         optimizer = self.make_static_optimizer(method, decoder, popsize, seed)
         if verbose:
@@ -261,7 +263,7 @@ class QASession:
         sigma: float = 0.1,
         lr: float = 0.05,
         thresholds: Optional[Sequence[float]] = None,
-        outputs: Sequence[str] = DEFAULT_POLICY_OUTPUTS,
+        outputs: Optional[Sequence[str]] = None,
         init_params: Optional[Mapping[str, float]] = None,
         scenario: Optional[str] = None,
         seed: int = 0,
@@ -270,7 +272,7 @@ class QASession:
     ) -> OptimizationOutcome:
         sc = self.scenario(scenario)
         info = self.class_info(cls)
-        space = info.full_space().subset([o for o in outputs if o in info.params])
+        space = info.learnable_space(outputs)   # 출력 = 블록 가중치 (outputs 는 그 부분집합만)
         fixed = self.base_params(cls, pid, init_params)
         decoder = PolicyDecoder(
             space, fixed,
@@ -301,7 +303,7 @@ class QASession:
         gamma: float = 1.0,
         concentration: float = 10.0,
         thresholds: Optional[Sequence[float]] = None,
-        outputs: Sequence[str] = DEFAULT_POLICY_OUTPUTS,
+        outputs: Optional[Sequence[str]] = None,
         init_params: Optional[Mapping[str, float]] = None,
         scenario: Optional[str] = None,
         seed: int = 0,
@@ -327,7 +329,7 @@ class QASession:
                 % (GameDescription.REQUIRED_TOTALS,))
         sc = self.scenario(scenario)
         info = self.class_info(cls)
-        space = info.full_space().subset([o for o in outputs if o in info.params])
+        space = info.learnable_space(outputs)   # 출력 = 블록 가중치 (outputs 는 그 부분집합만)
         fixed = self.base_params(cls, pid, init_params)
         cfg = ImpalaConfig(
             budget=budget, batch_size=batch_size, hidden=tuple(hidden), concentration=concentration,

@@ -4,3 +4,4 @@
 -f https://download.pytorch.org/whl/torch_stable.html
 numpy==1.22.4
 torch==1.8.1+cpu
+# BT-QA Game SDK 는 설치하지 않는다 — 루트 btqa_game/ 사본을 쓴다 (원본은 별도 레포 btqa_sdk, run/run_sync_sdk.py 로 복사)

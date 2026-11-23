@@ -5,6 +5,9 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
+# ---- BT-QA Game SDK 원본: 별도 GitHub 레포로 관리 (이 저장소는 btqa_game/·docs/PROTOCOL.md·unity_game/Packages/com.btqa.game 사본만 올린다) ----
+btqa_sdk/
+
 # ---- 실행 결과 (run/*.py 로 다시 만들 수 있음) ----
 reports/
 

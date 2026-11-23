@@ -1,5 +1,13 @@
 {
   "dependencies": {
+    "com.btqa.game": {
+      "version": "file:com.btqa.game",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
+      }
+    },
     "com.unity.ext.nunit": {
       "version": "2.0.5",
       "depth": 1,

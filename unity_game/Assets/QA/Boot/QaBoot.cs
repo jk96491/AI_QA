@@ -6,6 +6,7 @@
 // 3) 에디터 Play:     메뉴 QA > Play Mode Server 를 켜고 Play → 백그라운드 스레드, Play 종료 시 서버도 종료.
 //
 // 정의서는 메인 스레드에서 한 번 읽고(Resources), 서버 스레드는 Unity API 를 쓰지 않는다.
+using Btqa.Game;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -77,9 +78,10 @@ namespace Qa.Boot
             var cfg = new SimConfig();
             // 화면이 있는 모드에서만 최근 판을 기록 (뷰어 재생용). 헤드리스는 기록 비용 없음.
             Recorder = Application.isBatchMode ? null : new EpisodeRecorder();
-            var runner = new CombatEpisodeRunner(cfg, Recorder);   // 판 사이 상태 없음 → 연결 간 공유해도 안전
-            var repo = Repo;
-            var server = new QaServer(host, port, () => new QaSession(repo, cfg, runner), Log);
+            // BT-QA Game SDK: 서버·세션·요청 검증은 SDK, 판 실행·정의서는 QaArenaHost. 판 사이 상태 없음 → 연결 간 공유해도 안전
+            var gameHost = new QaArenaHost(Repo, cfg, Recorder);
+            gameHost.Declare().Validate();   // 기동 시 정의서 규칙 검사 (학습 대상 = 블록 가중치뿐)
+            var server = new QaServer(host, port, () => new QaSession(gameHost), Log);
             try
             {
                 server.Start();

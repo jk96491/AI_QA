@@ -17,6 +17,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(QaRoot)Assets\**\*.cs" />
+    <!-- BT-QA Game SDK (embedded 패키지 사본 Packages/com.btqa.game — 원본은 별도 SDK 레포, 상위의 run/run_sync_sdk.py 로 복사) -->
+    <Compile Include="$(QaRoot)Packages\com.btqa.game\Runtime\**\*.cs" />
     <Reference Include="$(QaRoot)Library\PackageCache\com.unity.nuget.newtonsoft-json@*\Runtime\Newtonsoft.Json.dll" />
     <!-- 모듈 어셈블리 (uGUI 패키지 DLL 이 모듈을 참조하므로 단일 UnityEngine.dll 대신 모듈별로) -->
     <Reference Include="$(UnityManaged)\UnityEngine\UnityEngine*.dll;$(UnityManaged)\UnityEngine\UnityEditor*.dll" />

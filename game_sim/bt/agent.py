@@ -10,7 +10,7 @@ Root (Selector)
 """
 from __future__ import annotations
 
-from typing import Dict, Mapping
+from typing import Dict, List, Mapping, Tuple
 
 from game_sim.bt.blackboard import Blackboard
 from game_sim.bt.blocks import ApproachBlock, BurstBlock, DpsBlock, GimmickBlock, SurvivalBlock
@@ -19,6 +19,20 @@ from game_sim.bt.node import Condition, Node, Selector, Sequence_, Status
 from game_sim.bt.selector import UtilityOption, UtilitySelector
 from game_sim.core.types import Action, Observation
 from game_sim.spec.class_spec import ClassSpec
+
+
+#: 전략 선택 노드의 블록 (블록 클래스, 필요도, 가중치 파라미터, 설명).
+#: describe 의 classes[].blocks 가 여기서 나온다 → 학습 대상 = 이 가중치들뿐 (btqa_game 규칙)
+STRATEGY_BLOCKS = (
+    (BurstBlock, BurstNeed, "w_burst", "버스트 콤보"),
+    (DpsBlock, DpsNeed, "w_dps", "딜 유지"),
+    (SurvivalBlock, SurvivalNeed, "w_survival", "생존 모드"),
+)
+
+
+def strategy_blocks() -> List[Tuple[str, str, str]]:
+    """(블록 이름, 가중치 파라미터, 설명)"""
+    return [(block.name, weight, desc) for block, _, weight, desc in STRATEGY_BLOCKS]
 
 
 class _MarkBlock(Node):
@@ -46,11 +60,7 @@ class BTAgent:
         gimmick = GimmickBlock()
         utility = UtilitySelector(
             "strategy",
-            options=[
-                UtilityOption(BurstBlock.name, BurstBlock().build(), BurstNeed(), "w_burst"),
-                UtilityOption(DpsBlock.name, DpsBlock().build(), DpsNeed(), "w_dps"),
-                UtilityOption(SurvivalBlock.name, SurvivalBlock().build(), SurvivalNeed(), "w_survival"),
-            ],
+            options=[UtilityOption(block.name, block().build(), need(), weight) for block, need, weight, _ in STRATEGY_BLOCKS],
             fallback=(ApproachBlock.name, ApproachBlock().build()),
         )
         forced = Sequence_(
