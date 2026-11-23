@@ -1,0 +1,859 @@
+{
+ "game_version": "0.8.1",
+ "results": [
+  {
+   "case": {
+    "class": "warrior",
+    "scenario": "base",
+    "seed": 11,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "approach": 0.6,
+     "burst": 21.6,
+     "dps": 203.7,
+     "gimmick": 1.8,
+     "setup": 4.8,
+     "survival": 0.9
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 233.4,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50247.5,
+    "damage_taken": 10950.4,
+    "deaths": 0,
+    "elapsed": 233.4,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 11,
+    "segment_times": [
+     54.0,
+     60.9,
+     58.5,
+     60.0
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "warrior",
+    "scenario": "base",
+    "seed": 222,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "approach": 0.6,
+     "burst": 21.6,
+     "dps": 208.2,
+     "gimmick": 1.8,
+     "setup": 4.5,
+     "survival": 0.9
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 237.6,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50120.0,
+    "damage_taken": 10846.4,
+    "deaths": 0,
+    "elapsed": 237.6,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 222,
+    "segment_times": [
+     60.9,
+     60.0,
+     61.5,
+     55.2
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "warrior",
+    "scenario": "base",
+    "seed": 3333,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "approach": 0.6,
+     "burst": 21.6,
+     "dps": 205.8,
+     "gimmick": 1.5,
+     "setup": 4.5,
+     "survival": 0.9
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 234.9,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50051.2,
+    "damage_taken": 10896.7,
+    "deaths": 0,
+    "elapsed": 234.9,
+    "gimmick_fail": 0,
+    "gimmick_success": 5,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 3333,
+    "segment_times": [
+     60.9,
+     60.0,
+     58.5,
+     55.5
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "warrior",
+    "scenario": "patch_boss_fast",
+    "seed": 11,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "approach": 0.6,
+     "burst": 21.6,
+     "dps": 203.7,
+     "gimmick": 1.8,
+     "setup": 4.8,
+     "survival": 0.9
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 233.4,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50247.5,
+    "damage_taken": 10950.4,
+    "deaths": 0,
+    "elapsed": 233.4,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 11,
+    "segment_times": [
+     54.0,
+     60.9,
+     58.5,
+     60.0
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "warrior",
+    "scenario": "patch_boss_fast",
+    "seed": 222,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "approach": 0.6,
+     "burst": 21.6,
+     "dps": 208.2,
+     "gimmick": 1.8,
+     "setup": 4.5,
+     "survival": 0.9
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 237.6,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50120.0,
+    "damage_taken": 10846.4,
+    "deaths": 0,
+    "elapsed": 237.6,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 222,
+    "segment_times": [
+     60.9,
+     60.0,
+     61.5,
+     55.2
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "warrior",
+    "scenario": "patch_boss_fast",
+    "seed": 3333,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "approach": 0.6,
+     "burst": 21.6,
+     "dps": 205.8,
+     "gimmick": 1.5,
+     "setup": 4.5,
+     "survival": 0.9
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 234.9,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50051.2,
+    "damage_taken": 10896.7,
+    "deaths": 0,
+    "elapsed": 234.9,
+    "gimmick_fail": 0,
+    "gimmick_success": 5,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 3333,
+    "segment_times": [
+     60.9,
+     60.0,
+     58.5,
+     55.5
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "warrior",
+    "scenario": "base",
+    "seed": 4444,
+    "triggers": true
+   },
+   "result": {
+    "block_time": {
+     "approach": 0.6,
+     "burst": 24.9,
+     "dps": 204.0,
+     "gimmick": 1.8,
+     "setup": 6.0,
+     "survival": 10.5
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 247.8,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50962.5,
+    "damage_taken": 11567.8,
+    "deaths": 0,
+    "elapsed": 247.8,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 4444,
+    "segment_times": [
+     61.8,
+     59.1,
+     58.8,
+     68.1
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 4
+   }
+  },
+  {
+   "case": {
+    "class": "mage",
+    "scenario": "base",
+    "seed": 11,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 3.9,
+     "dead": 75.6,
+     "dps": 274.2,
+     "gimmick": 1.8,
+     "setup": 0.3,
+     "survival": 38.1
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 393.9,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50046.0,
+    "damage_taken": 15849.0,
+    "deaths": 3,
+    "elapsed": 393.9,
+    "gimmick_fail": 2,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 11,
+    "segment_times": [
+     74.4,
+     78.6,
+     81.6,
+     159.3
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "mage",
+    "scenario": "base",
+    "seed": 222,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 1.8,
+     "dead": 25.2,
+     "dps": 287.1,
+     "gimmick": 2.4,
+     "setup": 0.9,
+     "survival": 28.2
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 345.6,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50146.0,
+    "damage_taken": 12196.5,
+    "deaths": 1,
+    "elapsed": 345.6,
+    "gimmick_fail": 0,
+    "gimmick_success": 8,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 222,
+    "segment_times": [
+     71.1,
+     80.1,
+     81.0,
+     113.4
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "mage",
+    "scenario": "base",
+    "seed": 3333,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 6.3,
+     "dead": 75.6,
+     "dps": 268.2,
+     "gimmick": 2.1,
+     "setup": 1.8,
+     "survival": 59.7
+    },
+    "boss_hp_remaining": 0.00037,
+    "clear_time": null,
+    "cleared": false,
+    "consumables_used": 3,
+    "damage_dealt": 49981.5,
+    "damage_taken": 18198.7,
+    "deaths": 4,
+    "elapsed": 413.7,
+    "gimmick_fail": 1,
+    "gimmick_success": 7,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 3333,
+    "segment_times": [
+     74.7,
+     81.0,
+     137.4
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "mage",
+    "scenario": "patch_boss_fast",
+    "seed": 11,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 10.5,
+     "dead": 75.6,
+     "dps": 210.6,
+     "gimmick": 2.4,
+     "setup": 2.4,
+     "survival": 125.4
+    },
+    "boss_hp_remaining": 0.03651,
+    "clear_time": null,
+    "cleared": false,
+    "consumables_used": 3,
+    "damage_dealt": 48174.5,
+    "damage_taken": 17699.6,
+    "deaths": 4,
+    "elapsed": 426.9,
+    "gimmick_fail": 1,
+    "gimmick_success": 8,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 11,
+    "segment_times": [
+     81.0,
+     81.6,
+     150.6
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "mage",
+    "scenario": "patch_boss_fast",
+    "seed": 222,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 6.9,
+     "dead": 75.6,
+     "dps": 196.2,
+     "gimmick": 2.1,
+     "setup": 3.3,
+     "survival": 94.8
+    },
+    "boss_hp_remaining": 0.17359,
+    "clear_time": null,
+    "cleared": false,
+    "consumables_used": 3,
+    "damage_dealt": 41320.5,
+    "damage_taken": 17371.1,
+    "deaths": 4,
+    "elapsed": 378.9,
+    "gimmick_fail": 1,
+    "gimmick_success": 7,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 222,
+    "segment_times": [
+     79.2,
+     85.5,
+     159.0
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "mage",
+    "scenario": "patch_boss_fast",
+    "seed": 3333,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 6.3,
+     "dead": 75.6,
+     "dps": 181.2,
+     "gimmick": 1.5,
+     "setup": 0.6,
+     "survival": 49.5
+    },
+    "boss_hp_remaining": 0.31025,
+    "clear_time": null,
+    "cleared": false,
+    "consumables_used": 3,
+    "damage_dealt": 34487.5,
+    "damage_taken": 15455.6,
+    "deaths": 4,
+    "elapsed": 314.7,
+    "gimmick_fail": 2,
+    "gimmick_success": 5,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 3333,
+    "segment_times": [
+     83.1,
+     109.2
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "mage",
+    "scenario": "base",
+    "seed": 4444,
+    "triggers": true
+   },
+   "result": {
+    "block_time": {
+     "burst": 4.2,
+     "dead": 75.6,
+     "dps": 227.4,
+     "gimmick": 1.5,
+     "setup": 1.8,
+     "survival": 40.8
+    },
+    "boss_hp_remaining": 0.17659,
+    "clear_time": null,
+    "cleared": false,
+    "consumables_used": 3,
+    "damage_dealt": 41170.5,
+    "damage_taken": 17367.7,
+    "deaths": 4,
+    "elapsed": 351.3,
+    "gimmick_fail": 3,
+    "gimmick_success": 5,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 4444,
+    "segment_times": [
+     77.4,
+     108.6,
+     135.3
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 4
+   }
+  },
+  {
+   "case": {
+    "class": "archer",
+    "scenario": "base",
+    "seed": 11,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 23.4,
+     "dead": 25.2,
+     "dps": 184.5,
+     "gimmick": 1.5,
+     "setup": 3.3,
+     "survival": 52.8
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 290.7,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50380.0,
+    "damage_taken": 13491.6,
+    "deaths": 1,
+    "elapsed": 290.7,
+    "gimmick_fail": 1,
+    "gimmick_success": 5,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 11,
+    "segment_times": [
+     61.5,
+     61.8,
+     63.9,
+     103.5
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "archer",
+    "scenario": "base",
+    "seed": 222,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 20.4,
+     "dead": 25.2,
+     "dps": 207.6,
+     "gimmick": 1.8,
+     "setup": 3.3,
+     "survival": 12.6
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 270.9,
+    "cleared": true,
+    "consumables_used": 2,
+    "damage_dealt": 50061.0,
+    "damage_taken": 11889.5,
+    "deaths": 1,
+    "elapsed": 270.9,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 222,
+    "segment_times": [
+     55.5,
+     62.1,
+     62.4,
+     90.9
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "archer",
+    "scenario": "base",
+    "seed": 3333,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 22.2,
+     "dead": 25.2,
+     "dps": 172.8,
+     "gimmick": 1.2,
+     "setup": 2.1,
+     "survival": 58.2
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 281.7,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50015.0,
+    "damage_taken": 14051.9,
+    "deaths": 1,
+    "elapsed": 281.7,
+    "gimmick_fail": 1,
+    "gimmick_success": 4,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 3333,
+    "segment_times": [
+     62.4,
+     61.8,
+     63.0,
+     94.5
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "archer",
+    "scenario": "patch_boss_fast",
+    "seed": 11,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 24.0,
+     "dead": 75.6,
+     "dps": 177.6,
+     "gimmick": 1.8,
+     "setup": 4.8,
+     "survival": 63.0
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 346.8,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50183.0,
+    "damage_taken": 16987.7,
+    "deaths": 3,
+    "elapsed": 346.8,
+    "gimmick_fail": 1,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 11,
+    "segment_times": [
+     57.6,
+     60.0,
+     64.2,
+     165.0
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "archer",
+    "scenario": "patch_boss_fast",
+    "seed": 222,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 26.4,
+     "dead": 75.6,
+     "dps": 159.3,
+     "gimmick": 1.8,
+     "setup": 3.0,
+     "survival": 65.1
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 331.2,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 50006.0,
+    "damage_taken": 15647.8,
+    "deaths": 3,
+    "elapsed": 331.2,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 222,
+    "segment_times": [
+     54.0,
+     62.4,
+     67.5,
+     147.3
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "archer",
+    "scenario": "patch_boss_fast",
+    "seed": 3333,
+    "triggers": false
+   },
+   "result": {
+    "block_time": {
+     "burst": 24.0,
+     "dead": 25.2,
+     "dps": 180.9,
+     "gimmick": 1.8,
+     "setup": 3.6,
+     "survival": 51.9
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 287.4,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 51074.0,
+    "damage_taken": 13028.7,
+    "deaths": 1,
+    "elapsed": 287.4,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 3333,
+    "segment_times": [
+     62.1,
+     63.0,
+     59.4,
+     102.9
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 0
+   }
+  },
+  {
+   "case": {
+    "class": "archer",
+    "scenario": "base",
+    "seed": 4444,
+    "triggers": true
+   },
+   "result": {
+    "block_time": {
+     "burst": 20.1,
+     "dps": 210.6,
+     "gimmick": 1.8,
+     "setup": 3.3,
+     "survival": 14.7
+    },
+    "boss_hp_remaining": 0.0,
+    "clear_time": 250.5,
+    "cleared": true,
+    "consumables_used": 3,
+    "damage_dealt": 51184.0,
+    "damage_taken": 11102.8,
+    "deaths": 0,
+    "elapsed": 250.5,
+    "gimmick_fail": 0,
+    "gimmick_success": 6,
+    "invalid": false,
+    "invalid_actions": 0,
+    "invalid_reason": null,
+    "seed": 4444,
+    "segment_times": [
+     58.5,
+     57.9,
+     63.9,
+     70.2
+    ],
+    "stall_reason": null,
+    "stalled": false,
+    "triggers_fired": 4
+   }
+  }
+ ]
+}

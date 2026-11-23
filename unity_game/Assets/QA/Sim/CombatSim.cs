@@ -32,6 +32,15 @@ namespace Qa.Sim
         readonly Player _p;
         readonly Boss _boss;
         readonly BTAgent _agent;
+        readonly Arena _arena;          // 2D 아레나 패턴 (보스 arena_radius > 0 일 때만, 0.8.0)
+        bool _evading;
+        readonly int[] _skillUses;
+        int _castCancels;
+        string _lastSetup;
+        double _lastSetupT;
+        /// <summary>스킬별 사용 횟수 (SkillDef.Index) — 보고서·하네스용, 결과 JSON 에는 없음.</summary>
+        public int[] SkillUses => _skillUses;
+        public int CastCancels => _castCancels;
         readonly Observation _obs = new Observation();
         ParamValues _params;
         double _distance;
@@ -67,8 +76,23 @@ namespace Qa.Sim
             _boss = new Boss(boss, _rng);
             _agent = new BTAgent(spec);
             _distance = _cfg.StartDistance;
+            if (boss.HasArena)
+            {
+                _arena = new Arena(boss, _rng, _log, _cfg.StartDistance);
+                _distance = _arena.Distance;
+                _arena.OnHit = (kind, raw) =>
+                {
+                    double since = _p.SinceHit;
+                    double taken = _p.ReceiveDamage(raw, false);
+                    if (kind == "pool") _p.SinceHit = since;   // 독 장판 지속 피해는 비전투 회복 타이머를 끊지 않는다 (틱마다 끊으면 원거리 회복이 사라짐)
+                    _damageTaken += taken;
+                    return taken;
+                };
+            }
             _obs.SkillAvailable = new bool[spec.Skills.Count];
+            _obs.CooldownLeft = new double[spec.Skills.Count];
             _obs.BossReach = boss.Reach;
+            _skillUses = new int[spec.Skills.Count];
             _bursts = spec.SkillsByRole(SkillRole.Burst).ToArray();
 
             _pendingTriggers = new List<double>(triggers ?? new double[0]);
@@ -96,10 +120,13 @@ namespace Qa.Sim
             o.Distance = _distance;
             o.BossHpRatio = _boss.HpRatio;
             o.GcdReady = p.GcdReady;
-            foreach (var s in _spec.Skills) o.SkillAvailable[s.Index] = p.Available(s);
+            foreach (var s in _spec.Skills) { o.SkillAvailable[s.Index] = p.Available(s); o.CooldownLeft[s.Index] = p.Cooldowns[s.Index]; }
+            o.BuffActive = p.DamageBuffTime > Eps && p.DamageBuff > 0;
+            o.TargetMarked = _boss.VulnTime > Eps;
             o.PotionsLeft = p.Potions;
             o.PotionReady = p.PotionReady;
             o.GimmickWarning = _boss.GimmickWarning;
+            o.Danger = _arena != null ? _arena.Danger : 0.0;
             return o;
         }
 
@@ -147,6 +174,8 @@ namespace Qa.Sim
         void Apply(BtAction action)
         {
             var p = _p;
+            bool wasEvading = _evading;
+            _evading = action.Kind == ActionKind.Evade;
             switch (action.Kind)
             {
                 case ActionKind.Skill:
@@ -157,7 +186,26 @@ namespace Qa.Sim
                     p.StartSkill(skill);
                     if (skill.GapClose) _distance = Math.Max(_cfg.MinDistance, _bossSpec.Reach - 1.5);
                     if (skill.Retreat > 0) _distance = Math.Min(_cfg.MaxDistance, _distance + skill.Retreat);
-                    if (_log.Enabled) _log.Record(_t, "skill", new JObject { ["name"] = skill.Name, ["block"] = _agent.CurrentBlock });
+                    if (skill.Dash > 0)
+                    {
+                        if (_arena != null) _distance = _arena.Dash(skill.Dash);
+                        else _distance = Math.Min(_cfg.MaxDistance, _distance + skill.Dash);
+                    }
+                    if (skill.BossStun > 0) _boss.StunLeft = Math.Max(_boss.StunLeft, skill.BossStun);
+                    if (skill.TargetVuln > 0) { _boss.Vuln = skill.TargetVuln; _boss.VulnTime = skill.VulnDuration; }
+                    _skillUses[skill.Index]++;
+                    if (_log.Enabled)
+                    {
+                        _log.Record(_t, "skill", new JObject
+                        {
+                            ["name"] = skill.Name, ["block"] = _agent.CurrentBlock, ["role"] = skill.Role.ToString().ToLowerInvariant(),
+                            ["cooldown_ready_at"] = Math.Round(_t + skill.Cooldown, 2),
+                        });
+                        if (skill.Role == SkillRole.Burst && _lastSetup != null && _t - _lastSetupT <= 10.0)
+                            _log.Record(_t, "combo", new JObject { ["setup"] = _lastSetup, ["burst"] = skill.Name });
+                        if (skill.Role == SkillRole.Mobility) _log.Record(_t, "dodge", new JObject { ["skill"] = skill.Name, ["danger"] = Math.Round(_obs.Danger, 3) });
+                    }
+                    if (skill.IsComboSetup) { _lastSetup = skill.Name; _lastSetupT = _t; }
                     if (skill.CastTime <= 0) Resolve(skill);
                     break;
                 }
@@ -173,6 +221,20 @@ namespace Qa.Sim
                     double healed = p.DrinkPotion();
                     _consumables++;
                     if (_log.Enabled) _log.Record(_t, "potion", new JObject { ["healed"] = Math.Round(healed, 1) });
+                    break;
+                }
+                case ActionKind.Evade:
+                {
+                    if (_arena == null) { _invalidActions++; return; }
+                    double fx = _arena.Px, fz = _arena.Pz;
+                    _distance = _arena.MoveToSafe(p.Spec.Stats.MoveSpeed, _cfg.Dt);
+                    if (_log.Enabled && !wasEvading)
+                        _log.Record(_t, "dodge", new JObject
+                        {
+                            ["from"] = new JArray(Math.Round(fx, 2), Math.Round(fz, 2)),
+                            ["to"] = new JArray(Math.Round(_arena.SafeX, 2), Math.Round(_arena.SafeZ, 2)),
+                            ["danger"] = Math.Round(_arena.Danger, 3),
+                        });
                     break;
                 }
                 case ActionKind.RespondGimmick:
@@ -191,7 +253,7 @@ namespace Qa.Sim
         {
             if (skill.Damage > 0 && (skill.IsSelfTarget || _distance <= skill.Range + 0.5))
             {
-                double dmg = skill.Damage;
+                double dmg = skill.Damage * _p.DamageMult * _boss.DamageTakenMult;
                 bool crit = _rng.NextDouble() < _spec.Stats.CritChance;
                 if (crit) dmg *= _cfg.CritMult;
                 if (_log.Enabled) _log.Record(_t, "dmg", new JObject { ["skill"] = skill.Name, ["dmg"] = Math.Round(dmg, 1), ["crit"] = crit });
@@ -261,6 +323,14 @@ namespace Qa.Sim
             }
             else
             {
+                if (p.Casting != null && _arena != null && _arena.Danger > Eps && _params.Get("w_evade", 0.0) > 0 &&
+                    _arena.Danger >= _params.Get("evade_cancel_danger", 2.0))
+                {
+                    // 시전 중 위험 → 시전을 끊고 이번 틱에 피한다 (0.8.1)
+                    if (_log.Enabled) _log.Record(_t, "cast_cancel", new JObject { ["skill"] = p.Casting.Name, ["reason"] = "danger", ["danger"] = Math.Round(_arena.Danger, 3) });
+                    _castCancels++;
+                    p.Interrupt();
+                }
                 if (p.Casting != null)
                 {
                     p.CastRemaining -= cfg.Dt;
@@ -277,6 +347,7 @@ namespace Qa.Sim
                 }
                 _blockTime.Add(_agent.CurrentBlock, cfg.Dt);
             }
+            if (_arena != null) _distance = _arena.PlayerMoved(_distance);
             DistanceAfterPlayer = _distance;
 
             if (!_boss.Alive)
@@ -290,6 +361,7 @@ namespace Qa.Sim
 
             // --- 보스 ---
             _distance = _boss.Update(cfg.Dt, _distance, !p.Dead, p.HpRatio, _t, _attacks);
+            if (_arena != null) _distance = _arena.BossMoved(_distance);
             if (_log.Enabled && _boss.StartedMove != null) _log.Record(_t, "boss", new JObject { ["move"] = _boss.StartedMove });
             foreach (var atk in _attacks)
             {
@@ -299,6 +371,7 @@ namespace Qa.Sim
                 if (atk.Kind == BossAttackKind.Gimmick) _gimmickFail++;
                 if (_log.Enabled) _log.Record(_t, "hit", new JObject { ["kind"] = atk.KindName, ["dmg"] = Math.Round(taken, 1) });
             }
+            if (_arena != null) _distance = _arena.Tick(cfg.Dt, _t, _boss.Phase, _boss.DamageMultNow, !p.Dead, p.Hp);
 
             // --- 사망 ---
             if (!p.Dead && p.Hp <= Eps)
@@ -351,6 +424,8 @@ namespace Qa.Sim
         public double DistanceAfterPlayer { get; private set; }
         public Player PlayerState => _p;
         public Boss BossState => _boss;
+        /// <summary>2D 아레나 (없으면 null = 1차원 거리 전투).</summary>
+        public Arena ArenaState => _arena;
         public ClassSpec ClassSpec => _spec;
         public SimConfig Config => _cfg;
         public string CurrentBlock => _agent.CurrentBlock;

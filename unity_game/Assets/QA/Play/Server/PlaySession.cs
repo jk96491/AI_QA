@@ -21,7 +21,9 @@ namespace Qa.Play.Server
     public static class PP
     {
         public const string Protocol = "play";
-        public const string ProtocolVersion = "0.3";
+        public const string ProtocolVersion = "0.4";
+        /// <summary>받는 버전 (0.x 는 주.부 일치). 0.3 클라이언트도 그대로 접속 — 0.4 기능(raw 입력·좌표)은 0.4 hello 에서만.</summary>
+        public static readonly string[] Accepted = { "0.4", "0.3" };
 
         public const string Hello = "hello", HelloOk = "hello_ok";
         public const string Describe = "play_describe", Description = "play_description";
@@ -43,6 +45,9 @@ namespace Qa.Play.Server
 
         /// <summary>P1 에서 구현한 행동 (play_describe.actions 에 이것만 싣는다).</summary>
         public static readonly string[] Actions = { "move_to", "interact", "ui_click", "use_item", "engage", "wait" };
+        /// <summary>v0.4 저수준 입력 (input_mode "raw" 에서는 이것 + wait + move_to(pos) 만).</summary>
+        public static readonly string[] RawActions = { "pointer_click", "pointer_move", "drag", "key_press", "key_hold", "text_input", "wait", "move_to" };
+        public static readonly string[] InputModes = { "semantic", "raw" };
     }
 
     public sealed class PlayOptions
@@ -72,6 +77,10 @@ namespace Qa.Play.Server
         long _conn = -1;
         bool _isReset;
         int _obsSeq;
+        string _version = ProtoDefault;     // hello 로 정한 버전
+        string _inputMode = "semantic";
+        const string ProtoDefault = "0.3";
+        bool V04 => _version == "0.4";
 
         PlayRequest _req;
         PlayRequest _deferred;            // 전투 대기 중 받은 연결 종료·bye (전투 정리 후 처리)
@@ -195,6 +204,9 @@ namespace Qa.Play.Server
                 _conn = r.Connection;   // 새 연결: reset 부터, 로드아웃도 새로
                 _isReset = false;
                 _loadout = new Loadout();
+                _version = ProtoDefault;
+                _inputMode = "semantic";
+                _semantic.IncludeCoords = false;
             }
             if (r.PreError != null)
             {
@@ -474,11 +486,15 @@ namespace Qa.Play.Server
             if (proto != PP.Protocol)
                 throw new ProtocolException(P.EProtocolVersion, "이 인스턴스는 플레이 모드(protocol \"play\" " + PP.ProtocolVersion + ") 서버. 요청 protocol=" + (proto ?? "없음") + " version='" + v + "'");
             // 0.x 는 부 버전 변경도 호환 깨짐 허용 (PLAY_PROTOCOL 7장) → 주.부 일치 요구
-            if (MajorMinor(v) != MajorMinor(PP.ProtocolVersion))
-                throw new ProtocolException(P.EProtocolVersion, "지원 버전 " + PP.ProtocolVersion + ", 요청 '" + v + "'");
+            string got = null;
+            foreach (var a in PP.Accepted) if (MajorMinor(v) == a) got = a;
+            if (got == null)
+                throw new ProtocolException(P.EProtocolVersion, "지원 버전 " + string.Join(", ", PP.Accepted) + ", 요청 '" + v + "'");
+            _version = got;
+            _semantic.IncludeCoords = V04;
             return new JObject
             {
-                ["type"] = PP.HelloOk, ["protocol"] = PP.Protocol, ["protocol_version"] = PP.ProtocolVersion,
+                ["type"] = PP.HelloOk, ["protocol"] = PP.Protocol, ["protocol_version"] = got,
                 ["game"] = _repo.GameName, ["game_version"] = _repo.GameVersion,
             };
         }
@@ -529,9 +545,26 @@ namespace Qa.Play.Server
                 },
                 ["quests"] = QuestList(),
                 ["pilot_notes"] = new JObject { ["max_chars"] = PP.PilotMaxChars, ["kinds"] = new JArray(PP.PilotKinds) },
+                // v0.4 (computer use): raw 입력 모드
+                ["input_modes"] = new JArray(PP.InputModes),
+                ["screen"] = new JObject { ["width"] = VirtualScreen.W, ["height"] = VirtualScreen.H, ["origin"] = "top_left" },
+                ["keys"] = KeyMap.ToWire(),
+                ["actions_raw"] = RawActionsWire(),
                 ["stage"] = "P3",
             };
         }
+
+        static JArray RawActionsWire() => new JArray
+        {
+            new JObject { ["name"] = "pointer_click", ["args"] = new JObject { ["x"] = "number", ["y"] = "number", ["button"] = "left|right | null" } },
+            new JObject { ["name"] = "pointer_move", ["args"] = new JObject { ["x"] = "number", ["y"] = "number" } },
+            new JObject { ["name"] = "drag", ["args"] = new JObject { ["x0"] = "number", ["y0"] = "number", ["x1"] = "number", ["y1"] = "number" } },
+            new JObject { ["name"] = "key_press", ["args"] = new JObject { ["key"] = "string (keys)" } },
+            new JObject { ["name"] = "key_hold", ["args"] = new JObject { ["key"] = "w|a|s|d", ["seconds"] = "number" } },
+            new JObject { ["name"] = "text_input", ["args"] = new JObject { ["text"] = "string" } },
+            new JObject { ["name"] = "wait", ["args"] = new JObject { ["seconds"] = "number | null", ["until"] = "event_kind | null" } },
+            new JObject { ["name"] = "move_to", ["args"] = new JObject { ["pos"] = "[x,y,z] (raw 모드는 좌표만)" } },
+        };
 
         JArray Encounters()
         {
@@ -566,16 +599,28 @@ namespace Qa.Play.Server
                 cls = ct.Type == JTokenType.String ? (string)ct : null;
                 if (!_repo.HasClass(cls)) throw new ProtocolException(P.EUnknownClass, "알 수 없는 class " + ct);
             }
+            string mode = "semantic";
             foreach (var p in msg.Properties())
+            {
+                if (p.Name == "input_mode" && V04)
+                {
+                    mode = p.Value.Type == JTokenType.String ? (string)p.Value : null;
+                    if (Array.IndexOf(PP.InputModes, mode) < 0) throw new ProtocolException(P.EBadRequest, "input_mode 는 semantic|raw");
+                    continue;
+                }
                 if (p.Name != "type" && p.Name != "seed" && p.Name != "class")
-                    throw new ProtocolException(P.EBadRequest, "reset 인자는 seed·class 뿐 (항상 새 게임, 시작 지점 옵션 없음): '" + p.Name + "'");
+                    throw new ProtocolException(P.EBadRequest, "reset 인자는 seed·class" + (V04 ? "·input_mode" : "") + " 뿐 (항상 새 게임, 시작 지점 옵션 없음): '" + p.Name + "'");
+            }
+            _inputMode = mode;
 
             _runner = null;
             _world = new WorldState(_data, seed, cls);
             _log.Clear();
             var w = _world;
             _world.OnEvent += ev => _log.Add(ev.Time, ev.Kind, ev.Payload);
-            _log.Add(0, "reset", new JObject { ["seed"] = seed, ["class"] = cls, ["omniscient"] = _opt.Omniscient });
+            var rl = new JObject { ["seed"] = seed, ["class"] = cls, ["omniscient"] = _opt.Omniscient };
+            if (V04) rl["input_mode"] = _inputMode;
+            _log.Add(0, "reset", rl);
             _world.Emit("new_game", new JObject { ["seed"] = seed, ["class"] = cls });
             _world.Begin();   // 시작 퀘스트 수락
             _isReset = true;
@@ -626,6 +671,11 @@ namespace Qa.Play.Server
             if (argsTok != null && argsTok.Type != JTokenType.Null && argsTok.Type != JTokenType.Object)
                 throw new ProtocolException(P.EBadRequest, "args 는 객체여야 함");
             var args = argsTok as JObject ?? new JObject();
+            bool raw = _inputMode == "raw";
+            if (raw && Array.IndexOf(PP.RawActions, name) < 0)
+                throw new ProtocolException(PP.EUnknownAction, "raw 입력 모드에서는 id 기반 행동 '" + name + "' 없음. 지원: " + string.Join(",", PP.RawActions));
+            if (raw && name == "move_to" && args["target"] != null && args["target"].Type != JTokenType.Null)
+                throw new ProtocolException(P.EBadRequest, "raw 입력 모드의 move_to 는 args.pos 만 (target 없음)");
             IPlayAction a;
             switch (name)
             {
@@ -635,13 +685,20 @@ namespace Qa.Play.Server
                 case "use_item": a = new UseItem(); break;
                 case "engage": a = new Engage(); break;
                 case "wait": a = new Wait(); break;
+                case "pointer_click" when V04: a = new PointerClick(); break;
+                case "pointer_move" when V04: a = new PointerMove(); break;
+                case "drag" when V04: a = new Drag(); break;
+                case "key_press" when V04: a = new KeyPress(); break;
+                case "key_hold" when V04: a = new KeyHold(); break;
+                case "text_input" when V04: a = new TextInput(); break;
                 default:
-                    throw new ProtocolException(PP.EUnknownAction, "알 수 없는(또는 이 단계에서 아직 없는) 행동 '" + name + "'. 지원: " + string.Join(",", PP.Actions));
+                    throw new ProtocolException(PP.EUnknownAction, "알 수 없는(또는 이 단계에서 아직 없는) 행동 '" + name + "'. 지원: " + string.Join(",", PP.Actions) +
+                                                                   (V04 ? " + raw " + string.Join(",", PP.RawActions) : ""));
             }
             _actSeq = msg["seq"];
             _actName = name;
             _log.Add(_world.Time, "act", new JObject { ["seq"] = _actSeq?.DeepClone(), ["action"] = name, ["args"] = args.DeepClone() });
-            var ctx = new ActionContext { World = _world, Perceivable = _semantic.EntityPerceivable };
+            var ctx = new ActionContext { World = _world, Perceivable = _semantic.EntityPerceivable, Scene = _scene };
             _acc = 0;
             _runner = new ActionRunner(ctx, a, args);   // ActionArgException → bad_request
             if (_runner.Finished) ScheduleActionResult();
@@ -671,6 +728,10 @@ namespace Qa.Play.Server
             };
             if (detail != null) summary["reason_detail"] = detail;
             if (by != null) summary["interrupted_by"] = by;
+            var hitA = a as IHitAction;
+            bool hasHit = hitA != null && hitA.HasHit;
+            string hit = hasHit ? hitA.Hit : null;
+            if (hasHit) summary["hit"] = hit;
             _log.Add(_world.Time, "action_result", summary);
             _onAction(_actName + " → " + status + (reason != null ? " (" + reason + ")" : "") + (by != null ? " by " + by : ""));
             Later(() =>
@@ -681,6 +742,7 @@ namespace Qa.Play.Server
                 };
                 if (detail != null) m["reason_detail"] = detail;
                 if (by != null) m["interrupted_by"] = by;
+                if (hasHit) m["hit"] = hit;
                 m["game_seconds"] = Math.Round(r.GameSeconds, 2);
                 m["observation"] = _semantic.Build(_world, _obsSeq++);
                 return m;

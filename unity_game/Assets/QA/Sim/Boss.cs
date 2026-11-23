@@ -54,6 +54,10 @@ namespace Qa.Sim
         readonly Rng _rng;
         public double Hp;
         public int Phase;
+        // 0.8.1 플레이어 스킬 효과: 행동 정지(덫), 받는 피해 증가(표식)
+        public double StunLeft;
+        public double Vuln, VulnTime;
+        public double DamageTakenMult => VulnTime > Eps ? 1.0 + Vuln : 1.0;
 
         // 쿨다운 (≤0 이면 준비)
         double _autoCd, _aoeCd, _gimmickCd, _cleaveCd, _leapCd, _executeCd, _throwCd;
@@ -103,6 +107,8 @@ namespace Qa.Sim
         public bool Enraged => Spec.EnrageTime > 0 && _time >= Spec.EnrageTime;
         double DamageMult => Spec.PhaseDamageMult[Phase] * (Enraged ? Spec.EnrageDamageMult : 1.0);
         double SpeedMult => Spec.PhaseSpeedMult[Phase];
+        /// <summary>현재 피해 배율 (페이즈·격노) — 아레나 패턴 피해에도 같은 배율.</summary>
+        public double DamageMultNow => DamageMult;
         bool InReach => _distance <= Spec.Reach + Eps;
 
         // ----- 피격 -----
@@ -153,6 +159,15 @@ namespace Qa.Sim
             _leapCd -= dt;
             _executeCd -= dt;
             _throwCd -= dt;
+            if (VulnTime > 0) { VulnTime -= dt; if (VulnTime <= Eps) { VulnTime = 0; Vuln = 0; } }
+            if (StunLeft > Eps)
+            {
+                // 속박: 준비 동작·이동·공격 모두 멈춤 (기믹 경고는 그대로 흐른다)
+                StunLeft -= dt;
+                if (GimmickWarning) _gimmickRemaining = Math.Max(0.0, _gimmickRemaining - dt);
+                _out = null;
+                return _distance;
+            }
 
             // 기믹 경고 진행 (보스 행동과 별개로 흐른다)
             if (GimmickWarning)

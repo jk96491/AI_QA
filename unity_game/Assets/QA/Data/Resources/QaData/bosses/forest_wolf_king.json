@@ -1,12 +1,12 @@
 {
   "_note": "숲의 늑대왕 — 플레이 모드 필드 보스 (밸런스 모드 시나리오 forest_wolf_king 으로도 학습). 고정 BT 상수, describe 비공개. 바꾸면 game_version 을 올린다",
   "name": "forest_wolf_king",
-  "max_hp": 47000,
+  "max_hp": 43000,
   "reach": 3.0,
   "move_speed": 2.6,
   "auto_damage": 105,
   "auto_interval": 1.6,
-  "aoe_damage": 280,
+  "aoe_damage": 210,
   "aoe_interval": 12.0,
   "aoe_jitter": 3.0,
   "gimmick_first_at": 30.0,
@@ -57,5 +57,13 @@
   "throw_phase_min": 2,
   "_enrage": "격노: 전투 enrage_time 초 이후 모든 피해 x enrage_damage_mult",
   "enrage_time": 420.0,
-  "enrage_damage_mult": 1.5
+  "enrage_damage_mult": 1.5,
+  "_arena": "0.8.0 2D 아레나 패턴 (BOSS_PATTERN_REQUEST): arena_radius > 0 이면 켜짐. B1 낙석·B2 독 장판·B3 부채꼴 탄막·B4 돌진, B5 하울링 = aoe_*, B6 phase_cooldown_mult·combo_phase_min",
+  "arena_radius": 14.0,
+  "rockfall_count": 5, "rockfall_aimed": 2, "rockfall_radius": 2.2, "rockfall_windup": 1.6, "rockfall_damage": 120, "rockfall_cooldown": 14.0, "rockfall_phase_min": 1,
+  "pool_radius": 3.0, "pool_duration": 12.0, "pool_dps": 25, "pool_cooldown": 11.0, "pool_max": 3, "pool_phase_min": 0,
+  "volley_count": 7, "volley_arc_deg": 70, "volley_speed": 9.0, "volley_damage": 50, "volley_cooldown": 12.0, "volley_phase_min": 1,
+  "charge_width": 2.5, "charge_windup": 1.3, "charge_damage": 260, "charge_cooldown": 15.0, "charge_knockback": 3.0, "charge_phase_min": 2,
+  "combo_phase_min": 2,
+  "phase_cooldown_mult": [1.0, 1.0, 1.0, 0.8]
 }

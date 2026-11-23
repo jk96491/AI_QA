@@ -16,7 +16,7 @@
     <QaRoot>$(MSBuildThisFileDirectory)..\..\</QaRoot>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(QaRoot)Assets\QA\Data\**\*.cs;$(QaRoot)Assets\QA\Sim\**\*.cs;$(QaRoot)Assets\QA\BT\**\*.cs;$(QaRoot)Assets\QA\Protocol\**\*.cs" />
+    <Compile Include="$(QaRoot)Assets\QA\Data\**\*.cs;$(QaRoot)Assets\QA\Sim\**\*.cs;$(QaRoot)Assets\QA\BT\**\*.cs;$(QaRoot)Assets\QA\Protocol\**\*.cs;$(QaRoot)Packages\com.btqa.game\Runtime\**\*.cs" />
     <Compile Include="Program.cs" />
     <Reference Include="$(QaRoot)Library\PackageCache\com.unity.nuget.newtonsoft-json@*\Runtime\Newtonsoft.Json.dll" />
   </ItemGroup>

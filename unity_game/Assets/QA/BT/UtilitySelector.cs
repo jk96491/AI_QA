@@ -38,6 +38,10 @@ namespace Qa.BT
 
         // 최대 유지 시간 규칙: 옵션별 '후보 제외 끝나는 시각' (판마다 새 에이전트 → 판 사이 상태 없음)
         readonly double[] _lockedUntil;
+        // 연속 유지 시작 시각 (NaN = 지금 유지 중 아님). 0.8.1: 회피·기믹으로 잠깐 끊겨도 이어서 센다
+        readonly double[] _holdSince;
+        /// <summary>다른 블록의 연속 유지 시간을 끊지 않는 블록 (짧은 끼어들기).</summary>
+        static readonly string[] Transparent = { "evade", "gimmick" };
 
         public UtilitySelector(string name, UtilityOption[] options, string fallbackName, Node fallback) : base(name)
         {
@@ -46,6 +50,8 @@ namespace Qa.BT
             _fallback = fallback;
             _lockedUntil = new double[options.Length];
             for (int i = 0; i < _lockedUntil.Length; i++) _lockedUntil[i] = double.NegativeInfinity;
+            _holdSince = new double[options.Length];
+            for (int i = 0; i < _holdSince.Length; i++) _holdSince[i] = double.NaN;
         }
 
         /// <summary>현재 블록이 최대 유지 시간을 넘겼으면 잠그고, 잠긴 동안이면 true.</summary>
@@ -53,9 +59,21 @@ namespace Qa.BT
         {
             var opt = _options[i];
             double now = bb.Obs.Time;
-            if (opt.MaxHold > 0 && bb.CurrentBlock == opt.Name && now - bb.BlockSince >= opt.MaxHold - 1e-9)
+            UpdateHold(bb, i);
+            if (opt.MaxHold > 0 && !double.IsNaN(_holdSince[i]) && now - _holdSince[i] >= opt.MaxHold - 1e-9)
+            {
                 _lockedUntil[i] = now + opt.Lockout;
+                _holdSince[i] = double.NaN;
+            }
             return now < _lockedUntil[i] - 1e-9;
+        }
+
+        /// <summary>현재 블록 기준으로 옵션 i 의 연속 유지 시작 시각 갱신.</summary>
+        void UpdateHold(Blackboard bb, int i)
+        {
+            var name = _options[i].Name;
+            if (bb.CurrentBlock == name) { if (double.IsNaN(_holdSince[i])) _holdSince[i] = bb.BlockSince; }
+            else if (System.Array.IndexOf(Transparent, bb.CurrentBlock) < 0) _holdSince[i] = double.NaN;
         }
 
         /// <summary>후보를 점수 내림차순으로 채운다. 동점이면 정의 순서 유지 (안정 삽입 정렬 → 결정론).</summary>

@@ -177,6 +177,7 @@ namespace Qa.Presentation
             {
                 DrawBossBar();
                 DrawPlayerPanel();
+                DrawSkillBar();
                 DrawInfo();
                 DrawLog();
                 DrawBanner();
@@ -265,6 +266,8 @@ namespace Qa.Presentation
                 case "dps": c = "70C0FF"; break;
                 case "survival": c = "70FF90"; break;
                 case "gimmick": c = "FFE040"; break;
+                case "evade": c = "A0FFA0"; break;
+                case "setup": c = "FFE080"; break;
                 case "dead": c = "FF5050"; break;
                 default: c = "C0C0C0"; break;
             }

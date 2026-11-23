@@ -1,5 +1,5 @@
 {
-  "spec_version": "0.3",
+  "spec_version": "0.4",
   "class": "archer",
   "display_name": "궁수",
   "ranged": true,
@@ -7,15 +7,18 @@
   "bt_rules": {"survival_max_hold": 12.0, "survival_lockout": 6.0},
   "stats": {
     "max_hp": 4000, "armor": 0.1,
-    "max_resource": 100, "start_resource": 100, "resource_regen": 12,
+    "max_resource": 100, "start_resource": 100, "resource_regen": 18,
     "move_speed": 7.0,
     "potions": 3, "potion_heal_ratio": 0.4, "potion_cooldown": 30,
     "crit_chance": 0.15, "hp_regen_ratio": 0.012, "regen_delay": 6
   },
   "skills": [
     {"name": "basic_shot", "role": "basic", "damage": 120, "range": 12},
-    {"name": "aimed_shot", "role": "dps", "damage": 280, "cooldown": 4, "cost": 25, "cast_time": 1.0, "range": 12},
-    {"name": "evade", "role": "defense", "cooldown": 12, "range": 0, "evade": 1.5, "retreat": 6},
+    {"name": "aimed_shot", "role": "dps", "damage": 280, "cooldown": 3, "cost": 25, "cast_time": 1.0, "range": 12},
+    {"name": "multi_shot", "role": "dps", "damage": 330, "cooldown": 5, "cost": 20, "range": 12},
+    {"name": "hunters_mark", "role": "setup", "cooldown": 20, "range": 12, "target_vuln": 0.2, "vuln_duration": 10},
+    {"name": "snare_trap", "role": "defense", "cooldown": 18, "range": 12, "boss_stun": 2.0},
+    {"name": "evade", "role": "mobility", "cooldown": 12, "range": 0, "evade": 1.5, "dash": 6},
     {"name": "rapid_fire", "role": "burst", "damage": 1000, "cooldown": 35, "cost": 40, "cast_time": 2.0, "range": 12}
   ],
   "params": {
@@ -24,9 +27,13 @@
     "w_burst":          {"range": [0.0, 1.0], "default": 0.6, "unit": "weight", "description": "버스트 블록 가중치"},
     "w_dps":            {"range": [0.0, 1.0], "default": 0.5, "unit": "weight", "description": "딜 유지 블록 가중치"},
     "w_survival":       {"range": [0.0, 1.0], "default": 0.8, "unit": "weight", "description": "생존 블록 가중치"},
+    "w_evade":          {"range": [0.0, 1.0], "default": 0.8, "unit": "weight", "description": "위험 회피 블록 가중치 (보스 패턴 경고 원·장판·돌진 띠·탄 경로)"},
+    "w_setup":          {"range": [0.0, 1.0], "default": 0.5, "unit": "weight", "description": "준비 블록 가중치 (버프·자원 — 버스트 콤보 전)"},
     "potion_hp":        {"range": [0.1, 0.9], "default": 0.45, "unit": "hp_ratio", "description": "생존 블록에서 물약을 마시는 체력"},
     "resource_reserve": {"range": [0.0, 0.6], "default": 0.2, "unit": "ratio", "description": "딜 스킬 사용 후 남길 집중 비율"},
     "min_commit":       {"range": [0.0, 3.0], "default": 0.6, "unit": "s", "description": "블록 최소 유지 시간"},
-    "kite_distance":    {"range": [0.0, 9.0], "default": 5.0, "unit": "m", "description": "보스가 이 거리보다 가까우면 뒤로 이동"}
+    "kite_distance":    {"range": [0.0, 9.0], "default": 5.0, "unit": "m", "description": "보스가 이 거리보다 가까우면 뒤로 이동"},
+    "combo_window":        {"range": [0.0, 10.0], "default": 4.0, "unit": "s", "description": "버스트가 이 시간 안에 준비되면 준비(Setup) 블록 후보"},
+    "evade_cancel_danger": {"range": [0.0, 1.0], "default": 0.35, "unit": "danger", "description": "시전 중 위험도가 이 값 이상이면 시전을 끊고 피함 (w_evade > 0 일 때)"}
   }
 }

@@ -19,6 +19,8 @@ namespace Qa.Play.Actions
         public WorldState World;
         /// <summary>엔티티 id 가 지금 플레이어에게 지각 가능한가 (omniscient 면 항상 true).</summary>
         public Func<string, bool> Perceivable;
+        /// <summary>화면 (raw 입력: 엔티티 화면 위치·플레이어 위치). v0.4</summary>
+        public Qa.Play.Perception.IPlayScene Scene;
     }
 
     public interface IPlayAction

@@ -3,9 +3,11 @@
 // Root (Selector)
 // ├─ [강제] 기믹 경고 중? → 기믹 대응 블록
 // └─ 전략 선택 노드 (S = N × w)
-//    ├─ 버스트 콤보 (w_burst)
-//    ├─ 딜 유지     (w_dps)
-//    └─ 생존 모드   (w_survival)
+//    ├─ 버스트 콤보 (w_burst)   Setup → Burst
+//    ├─ 딜 유지     (w_dps)     Dps 스킬 점수 순 → 평타
+//    ├─ 생존 모드   (w_survival) 물약 / 방어 / 거리
+//    ├─ 위험 회피   (w_evade)   이동기 / 안전 지점으로 (0.8.1)
+//    └─ 준비        (w_setup)   버프·자원 (0.8.1)
 //    (후보 없음 → 접근)
 using Qa.Data;
 using Qa.Sim;
@@ -48,6 +50,8 @@ namespace Qa.BT
             (BurstBlock.Name, "w_burst", "버스트 콤보"),
             (DpsBlock.Name, "w_dps", "딜 유지"),
             (SurvivalBlock.Name, "w_survival", "생존 모드"),
+            (EvadeBlock.Name, "w_evade", "위험 회피 (보스 패턴)"),
+            (SetupBlock.Name, "w_setup", "준비 (버프·자원)"),
         };
 
         static Node Build(ClassSpec spec)
@@ -60,6 +64,10 @@ namespace Qa.BT
                 // 생존 블록 최대 유지 시간 (정의서 bt_rules): 회복이 안 되는데 생존에 갇혀 멈추는 판 방지
                 new UtilityOption(SurvivalBlock.Name, new SurvivalBlock().Build(), new SurvivalNeed(), StrategyBlocks[2].Weight,
                                   spec.SurvivalMaxHold, spec.SurvivalLockout),
+                // 회피도 같은 최대 유지 규칙 (같은 위험에 계속 들락날락·갇힘 방지)
+                new UtilityOption(EvadeBlock.Name, new EvadeBlock().Build(), new EvadeNeed(), StrategyBlocks[3].Weight,
+                                  spec.SurvivalMaxHold, spec.SurvivalLockout),
+                new UtilityOption(SetupBlock.Name, new SetupBlock().Build(), new SetupNeed(), StrategyBlocks[4].Weight),
             }, ApproachBlock.Name, new ApproachBlock().Build());
             var forced = new Sequence("forced_gimmick",
                 new Condition("gimmick_warning", bb => bb.Obs != null && bb.Obs.GimmickWarning),

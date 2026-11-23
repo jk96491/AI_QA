@@ -125,6 +125,7 @@ namespace Qa.Presentation
             _bossTo = _bossFrom = Vector3.zero;
             _playerTo = _playerFrom = new Vector3(0, 0, -(float)_sim.Distance);
             _camFocus = (_bossTo + _playerTo) * 0.5f;
+            ArenaBegin();
             _player.Body.localRotation = Quaternion.identity;
             _phase = PlayPhase.Intro;
             _phaseT = 0f;
@@ -199,6 +200,7 @@ namespace Qa.Presentation
         {
             if (!_presenting) return;
             _presenting = false;
+            ClearHazards();
             Show(false);
             _sim = null;
             _fade = 1f;
@@ -239,6 +241,7 @@ namespace Qa.Presentation
                 DrawFloatTexts();
                 DrawBossBar();
                 DrawPlayerPanel();
+                DrawSkillBar();
                 DrawInfo();
                 DrawLog();
                 DrawBanner();

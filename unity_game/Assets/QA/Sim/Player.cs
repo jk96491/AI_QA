@@ -26,6 +26,10 @@ namespace Qa.Sim
         public bool Dead;
         public double ReviveTimer;
         public double SinceHit;
+        // 0.8.1 Setup 버프
+        public double DamageBuff, DamageBuffTime;   // 주는 피해 × (1 + DamageBuff)
+        public double RegenMult = 1.0, RegenTime;   // 자원 재생 배율
+        public double DamageMult => DamageBuffTime > Eps ? 1.0 + DamageBuff : 1.0;
 
         public Player(ClassSpec spec, double gcd)
         {
@@ -63,10 +67,12 @@ namespace Qa.Sim
                 if (ShieldTime <= Eps) { Shield = 0.0; ShieldTime = 0.0; }
             }
             EvadeTime = Math.Max(0.0, EvadeTime - dt);
+            if (DamageBuffTime > 0) { DamageBuffTime -= dt; if (DamageBuffTime <= Eps) { DamageBuffTime = 0; DamageBuff = 0; } }
+            if (RegenTime > 0) { RegenTime -= dt; if (RegenTime <= Eps) { RegenTime = 0; RegenMult = 1.0; } }
             if (!Dead)
             {
                 var s = Spec.Stats;
-                Resource = Math.Min(MaxResource, Resource + s.ResourceRegen * dt);
+                Resource = Math.Min(MaxResource, Resource + s.ResourceRegen * RegenMult * dt);
                 SinceHit += dt;
                 if (SinceHit >= s.RegenDelay) Hp = Math.Min(MaxHp, Hp + MaxHp * s.HpRegenRatio * dt);
             }
@@ -80,6 +86,9 @@ namespace Qa.Sim
             Gcd = Math.Max(_gcdDuration, skill.CastTime);
             if (skill.Shield > 0) { Shield = skill.Shield; ShieldTime = skill.EffectDuration; }
             if (skill.Evade > 0) EvadeTime = skill.Evade;
+            if (skill.ResourceOnUse > 0) GainResource(skill.ResourceOnUse);
+            if (skill.BuffDamage != 0) { DamageBuff = skill.BuffDamage; DamageBuffTime = skill.EffectDuration; }
+            if (skill.RegenMult != 1.0) { RegenMult = skill.RegenMult; RegenTime = skill.EffectDuration; }
             if (skill.CastTime > 0) { Casting = skill; CastRemaining = skill.CastTime; }
         }
 
@@ -113,6 +122,8 @@ namespace Qa.Sim
             ReviveTimer = reviveDelay;
             Interrupt();
             Shield = ShieldTime = EvadeTime = 0.0;
+            DamageBuff = DamageBuffTime = RegenTime = 0.0;
+            RegenMult = 1.0;
         }
 
         public void Revive(double hpRatio)

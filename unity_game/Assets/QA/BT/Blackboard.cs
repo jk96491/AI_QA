@@ -52,6 +52,28 @@ namespace Qa.BT
             return Obs.Resource - s.Cost >= reserve - Eps;
         }
 
+        /// <summary>버스트 스킬 중 하나가 sec 초 안에 쿨이 돈다 (자원은 보지 않음).</summary>
+        public bool BurstSoon(double sec)
+        {
+            foreach (var s in Skills(SkillRole.Burst)) if (Obs.CooldownLeft[s.Index] <= sec + Eps) return true;
+            return false;
+        }
+
+        /// <summary>같은 역할 스킬 중 지금 쓸 수 있는 것 가운데 점수(피해 / max(시전, GCD)) 최대. 동점이면 데이터 순서. 없으면 null.</summary>
+        public SkillDef BestUsable(SkillRole role, bool respectReserve, double gcd)
+        {
+            SkillDef best = null;
+            double bs = double.NegativeInfinity;
+            foreach (var s in Spec.Skills)
+            {
+                if (s.Role != role || !UsableNow(s) || !InRange(s)) continue;
+                if (respectReserve && !KeepsReserve(s)) continue;
+                double sc = s.Damage / System.Math.Max(gcd, s.CastTime);
+                if (sc > bs + 1e-9) { bs = sc; best = s; }
+            }
+            return best;
+        }
+
         public bool AnyAvailable(SkillRole role)
         {
             foreach (var s in Skills(role)) if (Available(s)) return true;

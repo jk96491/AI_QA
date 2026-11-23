@@ -13,7 +13,7 @@ namespace Qa.Data
         public ParamException(string code, string message) : base(message) { Code = code; }
     }
 
-    public enum SkillRole { Basic, Dps, Burst, Defense, GapClose }
+    public enum SkillRole { Basic, Dps, Burst, Defense, GapClose, Mobility, Setup }
 
     public sealed class SkillDef
     {
@@ -31,6 +31,15 @@ namespace Qa.Data
         public double EffectDuration;
         public double Retreat;            // 뒤로 이동 거리(m)
         public bool GapClose;             // 보스 앞으로 순간 이동
+        // ---- 0.8.1 (PLAYER_SKILL_BT_REQUEST) ----
+        public double Dash;               // Mobility: 안전 지점 쪽으로 즉시 이동 거리(m) (아레나 없으면 후퇴)
+        public double BuffDamage;         // Setup: effect_duration 동안 주는 피해 × (1 + buff_damage) (음수 = 감소)
+        public double ResourceOnUse;      // 사용 즉시 자원 획득
+        public double RegenMult = 1.0;    // Setup: effect_duration 동안 자원 재생 배율
+        public double TargetVuln;         // Setup: vuln_duration 동안 보스가 받는 피해 × (1 + target_vuln)
+        public double VulnDuration;
+        public double BossStun;           // Defense: 보스 행동 정지(초)
+        public bool IsComboSetup => Role == SkillRole.Setup && (BuffDamage > 0 || TargetVuln > 0);
 
         public bool IsSelfTarget => Range <= 0;
 
@@ -38,6 +47,7 @@ namespace Qa.Data
         {
             "name", "role", "damage", "cooldown", "cost", "cast_time", "range", "resource_gain",
             "shield", "evade", "effect_duration", "retreat", "gap_close",
+            "dash", "buff_damage", "resource_on_use", "regen_mult", "target_vuln", "vuln_duration", "boss_stun",
         };
 
         public static SkillRole ParseRole(string s, string source)
@@ -49,6 +59,8 @@ namespace Qa.Data
                 case "burst": return SkillRole.Burst;
                 case "defense": return SkillRole.Defense;
                 case "gap_close": return SkillRole.GapClose;
+                case "mobility": return SkillRole.Mobility;
+                case "setup": return SkillRole.Setup;
                 default: throw new SpecException(source, "알 수 없는 skill role " + s);
             }
         }
@@ -75,6 +87,13 @@ namespace Qa.Data
                 EffectDuration = SpecJson.Num(d, "effect_duration", 0, src),
                 Retreat = SpecJson.Num(d, "retreat", 0, src),
                 GapClose = SpecJson.Bool(d, "gap_close", false),
+                Dash = SpecJson.Num(d, "dash", 0, src),
+                BuffDamage = SpecJson.Num(d, "buff_damage", 0, src),
+                ResourceOnUse = SpecJson.Num(d, "resource_on_use", 0, src),
+                RegenMult = SpecJson.Num(d, "regen_mult", 1.0, src),
+                TargetVuln = SpecJson.Num(d, "target_vuln", 0, src),
+                VulnDuration = SpecJson.Num(d, "vuln_duration", 0, src),
+                BossStun = SpecJson.Num(d, "boss_stun", 0, src),
             };
         }
     }

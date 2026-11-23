@@ -83,7 +83,9 @@ namespace Qa.Play.Server
             Application.runInBackground = true;
             Application.targetFrameRate = 60;
             QualitySettings.vSyncCount = 0;
-            if (!Application.isBatchMode) Screen.SetResolution(1280, 720, FullScreenMode.Windowed);
+            // 창·헤드리스 모두 1280×720: UI 배치(CanvasScaler)가 화면 비율에 따라 달라지므로, 같게 해야 raw 입력 좌표가 같은 대상을 맞힌다 (v0.4 결정성)
+            Screen.SetResolution(1280, 720, FullScreenMode.Windowed);
+            log("화면 " + Screen.width + "x" + Screen.height + (Application.isBatchMode ? " (batchmode)" : ""));
 
             PlaySession session = null;
             var scene = sceneFactory(() => session?.World);

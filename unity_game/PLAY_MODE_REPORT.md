@@ -93,3 +93,14 @@ venv\Scripts\python.exe unity_game/QaTools~/play_check.py --game 127.0.0.1:7800 
 - G1 퀘스트 문구 "마을 남동쪽 초소의 경비병에게 보고" + 늑대왕 처치 후 `notice` 사건·화면 안내 + 촌장(after)·상인(q_tut_05 중) 대사에 경비병 위치. G3 전투 화면에 결계 안내 문구, 결과에 물약 사용·차감 표시.
 - 검증: `check-game` 37/37, `play_check.py` 120항목 (T-P 물약·T-N1~N5 추가) — 첫 실행 119/120 (검사 스크립트 seq 버그) → 수정 후 T7·T-N3 재실행 7/7 PASS.
 - 미완: 창 모드 스크린샷 미첨부. **학습 쪽 `play_agent/check.py` 갱신 필요**: `start_state == "full"` 기대(→ `barrier_inventory_potions`), T5 는 물약 cap 이상 등록 후 비교해야 함 (퀵슬롯 물약 없으면 carried 0).
+
+## 0.8.2 — 플레이 v0.4 computer use (`PLAY_PROTOCOL_0.4_COMPUTER_USE_REQUEST.md`) + 월드 이름표 + H2
+
+- 결정 3개는 요청서 권장안: raw 에서도 `move_to(pos)` 유지, 월드 물체 = 좌표 클릭 + `e` 키 둘 다, raw 에서도 UI id 노출.
+- hello **0.4 와 0.3 둘 다** 받음 (PP.Accepted). 0.3 세션 = 기존 관찰·행동 그대로 (좌표 없음, `input_mode` → bad_request). describe 에 `input_modes`·`screen`·`keys`·`actions_raw` 추가 필드만 붙음. **계약 PLAY_PROTOCOL.md 는 아직 0.3 (사용자 판단 대기)**.
+- 0.4: `reset.input_mode: "raw"` → id 행동 `unknown_action`, `move_to(target)` → bad_request. 관찰 `screen.ui[].rect` [x,y,w,h], `entities[].screen_pos` [x,y] (가상 화면 1280×720, 왼쪽 위 원점; 월드는 고정 16:9 가상 카메라 수학 투영).
+- raw 행동 (`Actions/RawInput.cs`): `pointer_click`(UI 레이캐스트 첫 대상 → 가려졌으면 가린 쪽이 받음 / 월드 물체: 멀면 다가가기·가까우면 첫 동사로 상호작용·적이면 교전 / 바닥: 그 점으로 이동), `pointer_move`, `drag`, `key_press`(i·q·escape·enter·e·1·2), `key_hold`(w/a/s/d, 화면 위 = +z, 막히면 멈춤, 어그로 감지), `text_input`(입력 칸 없음 → invalid_state). 결과에 `hit`.
+- 검사 `QaTools~/cu_check.py` 19/19 (같은 인스턴스 결정성 포함), `play_check.py` 120/120 (0.3 경로 회귀 없음).
+- **알려진 제약**: 헤드리스는 화면 크기가 1280×720 으로 안 바뀌어(SetResolution·-screen-width 무시) UI 배치가 몇 px 다름 (HUD 높이 56 vs 59) → **창 ↔ 헤드리스 사이에 기록한 좌표를 그대로 재생하면 어긋남**. 관찰의 rect 를 보고 누르는 것은 양쪽 모두 정상. raw 모드 재현은 같은 모드끼리.
+- 월드 이름표 (사용자 요청): NPC·아이템·포털·적 머리 위 TextMeshPro 라벨 + 퀘스트 마커(! ? ◆), 카메라를 향함, QaIgnore (관찰 불변). 스크린샷 `QaTools~/shots_0.8.2/world_labels_village.png`.
+- H2: 물약 설명 "필드 30% / 보스 결계 전투는 전투 물약 회복량(40%)".

@@ -10,12 +10,38 @@ namespace Qa.BT
         public abstract double? Value(Blackboard bb);
     }
 
-    /// <summary>쿨 준비 시 0.8, 아니면 후보 제외.</summary>
+    /// <summary>쿨 준비 시 0.8 (+0.3: Setup 버프·표식 중 — 콤보 창), 아니면 후보 제외.</summary>
     public sealed class BurstNeed : NeedFunction
     {
-        public const double Base = 0.8;
+        public const double Base = 0.8, ComboBonus = 0.3;
         public static double? Compute(bool burstReady) => burstReady ? Base : (double?)null;
-        public override double? Value(Blackboard bb) => Compute(bb.AnyAvailable(SkillRole.Burst));
+        public override double? Value(Blackboard bb)
+        {
+            var n = Compute(bb.AnyAvailable(SkillRole.Burst));
+            if (n == null) return null;
+            return n.Value + (bb.Obs.BuffActive || bb.Obs.TargetMarked ? ComboBonus : 0.0);
+        }
+    }
+
+    /// <summary>위험도 danger (아레나 패턴, 0.8.1 에서 생존 N 에서 옮김). 위험 없으면 후보 제외.</summary>
+    public sealed class EvadeNeed : NeedFunction
+    {
+        public override double? Value(Blackboard bb) => bb.Obs.Danger > 1e-9 ? bb.Obs.Danger : (double?)null;
+    }
+
+    /// <summary>Setup 스킬 준비 + (버스트가 combo_window 초 안에 준비 / 자원 부족) → 0.6, 아니면 후보 제외.</summary>
+    public sealed class SetupNeed : NeedFunction
+    {
+        public const double Base = 0.6;
+        public override double? Value(Blackboard bb)
+        {
+            bool any = false;
+            foreach (var s in bb.Skills(SkillRole.Setup)) if (bb.Available(s)) { any = true; break; }
+            if (!any) return null;
+            if (bb.BurstSoon(bb.P("combo_window", 4.0)) && !bb.Obs.BuffActive && !bb.Obs.TargetMarked) return Base;
+            if (bb.Obs.ResourceRatio < 0.3 && bb.InRange(bb.BasicSkill)) return Base;   // 자원 쌓기는 칠 수 있을 때만 (멀면 approach 블록이 돌진으로 붙는다)
+            return null;
+        }
     }
 
     /// <summary>체력이 φ 아래면 딜 의지 감소: 0.5 × min(1, hp/φ). 적이 사거리 밖이면 제외.</summary>
@@ -31,7 +57,7 @@ namespace Qa.BT
         }
     }
 
-    /// <summary>체력이 θ 아래로 내려가면 상승: max(0, (θ − hp)/θ).</summary>
+    /// <summary>체력이 θ 아래로 내려가면 상승: max(0, (θ − hp)/θ). (0.8.1: 위험도는 evade 블록으로 분리)</summary>
     public sealed class SurvivalNeed : NeedFunction
     {
         public static double Compute(double hp, double theta) => Math.Max(0.0, (theta - hp) / theta);

@@ -41,6 +41,21 @@ namespace Qa.Data
         // 격노: 전투 enrage_time 초 이후 모든 피해 × enrage_damage_mult (0 이면 없음)
         public double EnrageTime, EnrageDamageMult = 1.0;
 
+        // ---- 2D 아레나 패턴 (0.8.0, BOSS_PATTERN_REQUEST). arena_radius = 0 이면 전부 꺼짐 = 0.7.x 와 같은 1차원 전투 ----
+        public double ArenaRadius;
+        public double RockfallCount, RockfallAimed, RockfallRadius = 2.2, RockfallWindup = 1.6, RockfallDamage, RockfallCooldown = 14;
+        public int RockfallPhaseMin;
+        public double PoolRadius = 3.0, PoolDuration = 18, PoolDps, PoolCooldown = 9, PoolMax = 4;
+        public int PoolPhaseMin;
+        public double VolleyCount, VolleyArcDeg = 70, VolleySpeed = 9, VolleyDamage, VolleyCooldown = 12;
+        public int VolleyPhaseMin;
+        public double ChargeWidth = 2.5, ChargeWindup = 1.3, ChargeDamage, ChargeCooldown = 15, ChargeKnockback = 3.0;
+        public int ChargePhaseMin;
+        /// <summary>이 페이즈부터 낙석과 장판을 함께 (99 = 안 함).</summary>
+        public int ComboPhaseMin = 99;
+        public double[] PhaseCooldownMult = { 1.0, 1.0, 1.0, 1.0 };
+        public bool HasArena => ArenaRadius > 0;
+
         public static readonly HashSet<string> Keys = new HashSet<string>
         {
             "name", "max_hp", "reach", "move_speed", "auto_damage", "auto_interval", "aoe_damage", "aoe_interval",
@@ -51,6 +66,11 @@ namespace Qa.Data
             "execute_damage", "execute_cooldown", "execute_windup", "execute_hp_below", "execute_phase_min",
             "throw_damage", "throw_cooldown", "throw_windup", "throw_min_gap", "throw_phase_min",
             "enrage_time", "enrage_damage_mult",
+            "arena_radius", "rockfall_count", "rockfall_aimed", "rockfall_radius", "rockfall_windup", "rockfall_damage",
+            "rockfall_cooldown", "rockfall_phase_min", "pool_radius", "pool_duration", "pool_dps", "pool_cooldown", "pool_max",
+            "pool_phase_min", "volley_count", "volley_arc_deg", "volley_speed", "volley_damage", "volley_cooldown",
+            "volley_phase_min", "charge_width", "charge_windup", "charge_damage", "charge_cooldown", "charge_knockback",
+            "charge_phase_min", "combo_phase_min", "phase_cooldown_mult",
         };
 
         public static BossSpec FromJson(JObject d, string source)
@@ -100,6 +120,34 @@ namespace Qa.Data
             b.ThrowPhaseMin = (int)SpecJson.Num(d, "throw_phase_min", b.ThrowPhaseMin, source);
             b.EnrageTime = SpecJson.Num(d, "enrage_time", 0, source);
             b.EnrageDamageMult = SpecJson.Num(d, "enrage_damage_mult", b.EnrageDamageMult, source);
+            b.ArenaRadius = SpecJson.Num(d, "arena_radius", 0, source);
+            b.RockfallCount = SpecJson.Num(d, "rockfall_count", 0, source);
+            b.RockfallAimed = SpecJson.Num(d, "rockfall_aimed", 0, source);
+            b.RockfallRadius = SpecJson.Num(d, "rockfall_radius", b.RockfallRadius, source);
+            b.RockfallWindup = SpecJson.Num(d, "rockfall_windup", b.RockfallWindup, source);
+            b.RockfallDamage = SpecJson.Num(d, "rockfall_damage", 0, source);
+            b.RockfallCooldown = SpecJson.Num(d, "rockfall_cooldown", b.RockfallCooldown, source);
+            b.RockfallPhaseMin = (int)SpecJson.Num(d, "rockfall_phase_min", 0, source);
+            b.PoolRadius = SpecJson.Num(d, "pool_radius", b.PoolRadius, source);
+            b.PoolDuration = SpecJson.Num(d, "pool_duration", b.PoolDuration, source);
+            b.PoolDps = SpecJson.Num(d, "pool_dps", 0, source);
+            b.PoolCooldown = SpecJson.Num(d, "pool_cooldown", b.PoolCooldown, source);
+            b.PoolMax = SpecJson.Num(d, "pool_max", b.PoolMax, source);
+            b.PoolPhaseMin = (int)SpecJson.Num(d, "pool_phase_min", 0, source);
+            b.VolleyCount = SpecJson.Num(d, "volley_count", 0, source);
+            b.VolleyArcDeg = SpecJson.Num(d, "volley_arc_deg", b.VolleyArcDeg, source);
+            b.VolleySpeed = SpecJson.Num(d, "volley_speed", b.VolleySpeed, source);
+            b.VolleyDamage = SpecJson.Num(d, "volley_damage", 0, source);
+            b.VolleyCooldown = SpecJson.Num(d, "volley_cooldown", b.VolleyCooldown, source);
+            b.VolleyPhaseMin = (int)SpecJson.Num(d, "volley_phase_min", 0, source);
+            b.ChargeWidth = SpecJson.Num(d, "charge_width", b.ChargeWidth, source);
+            b.ChargeWindup = SpecJson.Num(d, "charge_windup", b.ChargeWindup, source);
+            b.ChargeDamage = SpecJson.Num(d, "charge_damage", 0, source);
+            b.ChargeCooldown = SpecJson.Num(d, "charge_cooldown", b.ChargeCooldown, source);
+            b.ChargeKnockback = SpecJson.Num(d, "charge_knockback", b.ChargeKnockback, source);
+            b.ChargePhaseMin = (int)SpecJson.Num(d, "charge_phase_min", 0, source);
+            b.ComboPhaseMin = (int)SpecJson.Num(d, "combo_phase_min", b.ComboPhaseMin, source);
+            b.PhaseCooldownMult = SpecJson.NumArray(d, "phase_cooldown_mult", b.PhaseCooldownMult, source);
             return b;
         }
     }

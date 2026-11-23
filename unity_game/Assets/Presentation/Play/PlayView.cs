@@ -68,6 +68,10 @@ namespace Qa.Presentation.Play
         float _bubbleUntil, _toastUntil;
         bool _fieldVisible = true;
 
+        // 월드 이름표 (촌장·약초 등 머리 위): 표시 전용, QaIgnore — 관찰은 QaTag 의 label·marker 로 이미 나간다
+        sealed class WorldLabel { public string Id, Name; public Transform T; public TextMeshPro Text; public string Marker; }
+        readonly List<WorldLabel> _labels = new List<WorldLabel>();
+
         public IReadOnlyList<QaTag> WorldTags => _tags;
         public Transform UiRoot => _uiRoot;
         public Vector3 PlayerPosition => _player != null ? _player.position : Vector3.zero;
@@ -115,6 +119,7 @@ namespace Qa.Presentation.Play
         {
             if (_zoneRoot != null) Destroy(_zoneRoot.gameObject);
             _tags.Clear();
+            _labels.Clear();
             var z = w.ZoneDef;
             _zoneRoot = new GameObject("Zone:" + z.Id).transform;
             _zoneRoot.SetParent(transform, false);
@@ -170,6 +175,7 @@ namespace Qa.Presentation.Play
                 }
                 go.name = "Entity:" + d.Id;
                 go.transform.SetParent(_zoneRoot, true);
+                AddLabel(go.transform, d, role);
                 // 태그 위치 = 바닥 위치 (시야 판정은 Visibility 가 높이로 경계 상자를 만든다)
                 var tagGo = new GameObject(d.Id);
                 tagGo.transform.SetParent(go.transform, false);
@@ -193,6 +199,60 @@ namespace Qa.Presentation.Play
             Paint(p, new Color(0.25f, 0.5f, 0.95f));
             _player = p.transform;
             _builtZone = z.Id;
+        }
+
+        static Color LabelColor(QaRole role)
+        {
+            switch (role)
+            {
+                case QaRole.Npc: return new Color(1f, 0.95f, 0.75f);
+                case QaRole.Enemy: return new Color(1f, 0.45f, 0.4f);
+                case QaRole.Item: return new Color(0.6f, 1f, 0.6f);
+                case QaRole.Portal: return new Color(0.7f, 0.75f, 1f);
+                default: return new Color(0.9f, 0.9f, 0.9f);
+            }
+        }
+
+        void AddLabel(Transform entity, EntityDef d, QaRole role)
+        {
+            if (string.IsNullOrEmpty(d.Label)) return;
+            var go = new GameObject("Label");
+            go.AddComponent<QaIgnore>();
+            go.transform.SetParent(entity, false);
+            go.transform.position = new Vector3((float)d.X, (float)d.Height + 0.7f, (float)d.Z);
+            var t = go.AddComponent<TextMeshPro>();
+            var f = PlayFont.Get();
+            if (f != null) t.font = f;
+            t.text = d.Label;
+            t.fontSize = role == QaRole.Enemy ? 7f : 5.5f;
+            t.alignment = TextAlignmentOptions.Center;
+            t.color = LabelColor(role);
+            t.outlineWidth = 0.25f;
+            t.outlineColor = new Color32(0, 0, 0, 200);
+            t.rectTransform.sizeDelta = new Vector2(12f, 2f);
+            _labels.Add(new WorldLabel { Id = d.Id, Name = d.Label, T = go.transform, Text = t });
+        }
+
+        static string MarkerGlyph(string m) =>
+            m == "quest_available" ? "<color=#FFD040>!</color> " : m == "quest_turn_in" ? "<color=#FFD040>?</color> " : m == "objective" ? "<color=#80E0FF>◆</color> " : "";
+
+        void SyncLabels(WorldState w)
+        {
+            foreach (var l in _labels)
+            {
+                if (l.T == null) continue;
+                var mk = w.MarkerFor(l.Id);
+                if (mk == l.Marker) continue;
+                l.Marker = mk;
+                l.Text.text = MarkerGlyph(mk) + l.Name;
+            }
+        }
+
+        void FaceLabels()
+        {
+            if (_cam == null) return;
+            var rot = _cam.transform.rotation;
+            foreach (var l in _labels) if (l.T != null) l.T.rotation = rot;
         }
 
         void Paint(GameObject go, Color c)
@@ -232,6 +292,7 @@ namespace Qa.Presentation.Play
                 }
             }
 
+            SyncLabels(w);
             _hudZone.text = w.ZoneDef.Label;
             _hudGold.text = "골드 " + w.Gold;
             for (int i = 0; i < _hudQuick.Length; i++)
@@ -411,6 +472,7 @@ namespace Qa.Presentation.Play
 
         void LateUpdate()
         {
+            FaceLabels();
             float now = Time.unscaledTime;
             if (_notice != null && _notice.activeSelf && now > _noticeUntil) _notice.SetActive(false);
             if (_pilotRoot == null) return;

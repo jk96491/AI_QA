@@ -10,7 +10,7 @@ namespace Qa.Sim
         public const double Eps = 1e-9;
     }
 
-    public enum ActionKind { Idle, Skill, MoveToward, MoveAway, Potion, RespondGimmick }
+    public enum ActionKind { Idle, Skill, MoveToward, MoveAway, Potion, RespondGimmick, Evade }
 
     /// <summary>BT 가 결정(300ms)마다 내놓는 행동. 불변·캐시 (판 루프에서 할당 없음).</summary>
     public sealed class BtAction
@@ -25,6 +25,8 @@ namespace Qa.Sim
         public static readonly BtAction MoveAway = new BtAction(ActionKind.MoveAway, null);
         public static readonly BtAction Potion = new BtAction(ActionKind.Potion, null);
         public static readonly BtAction RespondGimmick = new BtAction(ActionKind.RespondGimmick, null);
+        /// <summary>아레나 위험 지역에서 안전 지점으로 이동 (0.8.0).</summary>
+        public static readonly BtAction Evade = new BtAction(ActionKind.Evade, null);
 
         public static BtAction Use(SkillDef skill) => new BtAction(ActionKind.Skill, skill);
     }
@@ -46,6 +48,12 @@ namespace Qa.Sim
         public int PotionsLeft;
         public bool PotionReady;
         public bool GimmickWarning;
+        /// <summary>지금 위치의 위험도 0~1 (아레나 패턴: 경고 원·장판·돌진 띠·탄 경로). 아레나 없는 보스는 항상 0.</summary>
+        public double Danger;
+        /// <summary>스킬별 남은 쿨타임(초), SkillDef.Index (0.8.1).</summary>
+        public double[] CooldownLeft;
+        /// <summary>플레이어 피해 버프 중 / 보스 표식 중 (0.8.1 Setup → Burst 콤보).</summary>
+        public bool BuffActive, TargetMarked;
 
         public bool InBossReach => Distance <= BossReach + SimConst.Eps;
     }

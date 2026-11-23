@@ -247,6 +247,7 @@ namespace Qa.Presentation
             _bossTo = _bossFrom = Vector3.zero;
             _playerTo = _playerFrom = new Vector3(0, 0, -(float)_sim.Distance);
             _camFocus = (_bossTo + _playerTo) * 0.5f;
+            ArenaBegin();
             _player.Body.localRotation = Quaternion.identity;
             ConsumeEvents();
             LogLine("<b>전투 시작</b> — " + _spec.DisplayName + " vs 보스, 시나리오 " + _scenario + ", seed " + seed +
@@ -286,6 +287,7 @@ namespace Qa.Presentation
 
         void StepOnce()
         {
+            if (HasArena) { ArenaStepOnce(); return; }   // 2D 아레나 판: 좌표는 시뮬레이터가 정한다
             var u = _playerTo - _bossTo;
             u.y = 0;
             u = u.sqrMagnitude < 1e-4f ? Vector3.back : u.normalized;
@@ -394,6 +396,8 @@ namespace Qa.Presentation
 
         void OnEvent(string kind, JObject pl)
         {
+            NoteSkillEvent(kind, pl);
+            if (OnArenaEvent(kind, pl)) return;
             switch (kind)
             {
                 case "skill":
@@ -522,6 +526,7 @@ namespace Qa.Presentation
             var playerPos = Vector3.Lerp(_playerFrom, _playerTo, frac);
             _boss.Root.position = bossPos;
             _player.Root.position = playerPos;
+            AnimateArena(time);
 
             // 서로 바라보기
             var toP = playerPos - bossPos; toP.y = 0;
@@ -693,6 +698,14 @@ namespace Qa.Presentation
                 case "aimed_shot": return "조준 사격";
                 case "evade": return "회피";
                 case "rapid_fire": return "속사";
+                case "whirlwind": return "회전베기";
+                case "battle_cry": return "전투의 함성";
+                case "roll": return "구르기";
+                case "ice_lance": return "얼음창";
+                case "mana_focus": return "마나 집중";
+                case "multi_shot": return "연사";
+                case "hunters_mark": return "사냥꾼의 표식";
+                case "snare_trap": return "덫";
                 default: return s;
             }
         }
@@ -706,6 +719,8 @@ namespace Qa.Presentation
                 case "survival": return "생존";
                 case "gimmick": return "기믹 대응";
                 case "approach": return "접근";
+                case "evade": return "회피";
+                case "setup": return "준비";
                 case "dead": return "사망";
                 default: return b;
             }

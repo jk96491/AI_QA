@@ -74,6 +74,9 @@ namespace Qa.Play.Perception
             return t != null && TagPerceivable(t, Visibility.Frustum(_scene.PlayerPosition));
         }
 
+        /// <summary>v0.4: screen.ui[].rect·entities[].screen_pos (가상 화면 1280×720) 를 싣는다.</summary>
+        public bool IncludeCoords;
+
         public JObject Build(WorldState w, int seq)
         {
             var obs = new JObject
@@ -167,6 +170,8 @@ namespace Qa.Play.Perception
                 };
                 var mk = w.MarkerFor(t.id);
                 if (mk != null) o["marker"] = mk;
+                if (IncludeCoords && ok && VirtualScreen.EntityScreen(t, _scene.PlayerPosition, out var sc, out _))
+                    o["screen_pos"] = new JArray(Mathf.RoundToInt(sc.x), Mathf.RoundToInt(sc.y));
                 if (!ok) o["hidden"] = true;
                 list.Add((d, t.id, o));
             }
@@ -217,6 +222,7 @@ namespace Qa.Play.Perception
                     var o = new JObject { ["id"] = UiIds.Of(t), ["role"] = SelectableRole(sel), ["text"] = TextUnder(t) };
                     o["interactable"] = vis && Visibility.Interactable(sel, out _);
                     if (!vis) o["hidden"] = true;
+                    else if (IncludeCoords) o["rect"] = new JArray(VirtualScreen.UiRect((RectTransform)t));
                     arr.Add(o);
                 }
                 return;   // 버튼 안 글자는 버튼 text 로 합침
@@ -230,6 +236,7 @@ namespace Qa.Play.Perception
                 {
                     var o = new JObject { ["id"] = UiIds.Of(t), ["role"] = "text", ["text"] = s };
                     if (!vis) o["hidden"] = true;
+                    else if (IncludeCoords) o["rect"] = new JArray(VirtualScreen.UiRect((RectTransform)t));
                     arr.Add(o);
                 }
             }

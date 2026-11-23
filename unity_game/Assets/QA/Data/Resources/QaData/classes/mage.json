@@ -1,5 +1,5 @@
 {
-  "spec_version": "0.3",
+  "spec_version": "0.4",
   "class": "mage",
   "display_name": "마법사",
   "ranged": true,
@@ -8,7 +8,7 @@
   "bt_rules": {"survival_max_hold": 12.0, "survival_lockout": 6.0},
   "stats": {
     "max_hp": 3000, "armor": 0.0,
-    "max_resource": 1000, "start_resource": 1000, "resource_regen": 35,
+    "max_resource": 1000, "start_resource": 1000, "resource_regen": 45,
     "move_speed": 7.0,
     "potions": 3, "potion_heal_ratio": 0.4, "potion_cooldown": 30,
     "crit_chance": 0.12, "hp_regen_ratio": 0.012, "regen_delay": 6
@@ -16,8 +16,10 @@
   "skills": [
     {"name": "magic_bolt", "role": "basic", "damage": 115, "range": 10},
     {"name": "fireball", "role": "dps", "damage": 340, "cost": 110, "cast_time": 1.5, "range": 10},
+    {"name": "ice_lance", "role": "dps", "damage": 230, "cooldown": 4, "cost": 60, "range": 10},
     {"name": "barrier", "role": "defense", "cooldown": 20, "cost": 80, "range": 0, "shield": 0.5, "effect_duration": 5},
-    {"name": "blink", "role": "defense", "cooldown": 15, "range": 0, "retreat": 8},
+    {"name": "mana_focus", "role": "setup", "cooldown": 30, "range": 0, "regen_mult": 3.0, "buff_damage": -0.2, "effect_duration": 6},
+    {"name": "blink", "role": "mobility", "cooldown": 15, "range": 0, "dash": 8},
     {"name": "meteor", "role": "burst", "damage": 1300, "cooldown": 40, "cost": 300, "cast_time": 2.5, "range": 10}
   ],
   "params": {
@@ -26,9 +28,13 @@
     "w_burst":          {"range": [0.0, 1.0], "default": 0.2, "unit": "weight", "description": "버스트 블록 가중치"},
     "w_dps":            {"range": [0.0, 1.0], "default": 0.65, "unit": "weight", "description": "딜 유지 블록 가중치"},
     "w_survival":       {"range": [0.0, 1.0], "default": 0.85, "unit": "weight", "description": "생존 블록 가중치"},
+    "w_evade":          {"range": [0.0, 1.0], "default": 0.8, "unit": "weight", "description": "위험 회피 블록 가중치 (보스 패턴 경고 원·장판·돌진 띠·탄 경로)"},
+    "w_setup":          {"range": [0.0, 1.0], "default": 0.4, "unit": "weight", "description": "준비 블록 가중치 (버프·자원 — 버스트 콤보 전)"},
     "potion_hp":        {"range": [0.1, 0.9], "default": 0.8, "unit": "hp_ratio", "description": "생존 블록에서 물약을 마시는 체력"},
     "resource_reserve": {"range": [0.0, 0.6], "default": 0.55, "unit": "ratio", "description": "딜 스킬 사용 후 남길 마나 비율 (메테오 비축)"},
     "min_commit":       {"range": [0.0, 3.0], "default": 0.4, "unit": "s", "description": "블록 최소 유지 시간"},
-    "kite_distance":    {"range": [0.0, 9.0], "default": 6.0, "unit": "m", "description": "보스가 이 거리보다 가까우면 뒤로 이동"}
+    "kite_distance":    {"range": [0.0, 9.0], "default": 6.0, "unit": "m", "description": "보스가 이 거리보다 가까우면 뒤로 이동"},
+    "combo_window":        {"range": [0.0, 10.0], "default": 4.0, "unit": "s", "description": "버스트가 이 시간 안에 준비되면 준비(Setup) 블록 후보"},
+    "evade_cancel_danger": {"range": [0.0, 1.0], "default": 0.35, "unit": "danger", "description": "시전 중 위험도가 이 값 이상이면 시전을 끊고 피함 (w_evade > 0 일 때)"}
   }
 }
