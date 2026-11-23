@@ -1,97 +1,161 @@
-# BT 파라미터 최적화 — 밸런스 QA 프로토타입
+# BT-QA — Reinforcement learning for game balance QA, decoupled from the game
 
-게임과 학습 플랫폼을 분리해, **실제 게임과 주고받는 방식**으로 다음을 확인합니다.
+**Designers own the behavior tree. RL learns only the weights they declare — and hands them back.**
 
-- 같은 BT에 **숫자(가중치·임계값)만 학습**해서 직업 간 공정 비교가 가능한가
-- 페르소나(공격형·안정형·효율형)별 최적 파라미터와 클리어 시간 매트릭스
-- 판당 1회 결정(CMA-ES)과 결정 트리거 정책(MLP + OpenAI-ES, **IMPALA**)의 차이
+The game exposes its combat behavior tree (BT) and declares which block weights may be learned. A learning platform
+(CMA-ES, IMPALA) tunes only those weights per player persona, over a plain TCP protocol, on CPU.
+The same contract works for a Unity game and a Python simulator, and the learned weights drive the real game's combat
+when an agent plays it from the first village.
 
-> 수치는 장난감 게임(`game_sim`)의 값입니다. **경향과 크기 비교**에만 사용하세요.
+![Same seed, three behavior trees: hand-tuned (fails at 10:00) vs CMA-ES (clears in 348 s) vs IMPALA (clears in 357 s)](docs/media/compare.gif)
 
-## 구성
+*Unity build, same boss fight and same seed, replayed side by side (16×): hand-tuned defaults · CMA-ES · IMPALA policy.*
 
-```
-game_sim/     게임 대역 (BT·전투·데이터·TCP 서버)   ← 추후 Unity 빌드로 교체
-balance_qa/   학습 플랫폼 (최적화·정책·IMPALA — torch CPU, 보상·평가·리포트)
-docs/PROTOCOL.md   둘 사이의 계약 (TCP JSON Lines v1.2)
-qa_specs/     페르소나 (퍼블리셔 정의)
-experiments/  E0~E7 가설 검증
-run/          PyCharm ▶ 실행 스크립트 (설정값만 고쳐서 실행)
-unity_game/   실제 테스트 게임 (Unity 프로젝트) — 제작 규칙: unity_game/AGENT_GUIDE.md
-tests/        game / learner / integration / independence
-```
+---
 
-## 설치
+## Why this direction
 
-```bash
-pip install -r requirements.txt   # numpy + PyTorch CPU (Python 3.8+)
-```
+I have worked on reinforcement learning for game balance QA for a long time. Two problems kept coming back:
 
-## 빠른 시작
+- **RL is welded to the game.** Observation and action spaces are game-specific, so every game — often every patch —
+  means rebuilding the agent. The result is a black-box policy that designers cannot read or adjust.
+- **LLM agents are a poor fit for combat.** Letting the model make every decision costs a call (latency and money) per
+  decision, while a combat BT decides every 0.3 s. Fine-tuning the model costs time and GPUs instead.
 
-```bash
-python -m unittest discover -s tests -t .       # 테스트
-python -m balance_qa check-game                 # 게임 대역 프로토콜 적합성 검사
+This project tries a different split:
 
-# 게임 대역 4개를 자동으로 띄우고 학습
-python -m balance_qa --workers 4 evaluate --cls warrior mage archer --persona stable -n 200
-python -m balance_qa --workers 4 optimize --cls mage --persona stable --budget 3000
-python -m balance_qa --workers 4 policy   --cls warrior --persona stable --budget 6000 \
-    --init-params reports/<run_id>/params.json
-python -m balance_qa --workers 4 sensitivity --cls archer --persona stable -n 100
-
-# IMPALA (로컬 액터 프로세스 = 게임 인스턴스 수, V-trace 학습기)
-python -m balance_qa --workers 8 impala --cls warrior --persona stable --budget 8000 \
-    --init-params reports/<run_id>/params.json
-
-# 클라우드 구조 미리 보기: 학습기는 대기, 액터는 따로 접속 (docs/DISTRIBUTED.md)
-python -m balance_qa --workers 1 impala --cls warrior --persona stable --actors external --listen 127.0.0.1:7000 --token abc
-python -m balance_qa actor --learner 127.0.0.1:7000 --token abc
-```
-
-## PyCharm 에서 실행
-
-`run/` 폴더 스크립트의 맨 위 설정값만 고치고 ▶ Run. 상단 실행 목록 `QA` 폴더에도 등록되어 있습니다 (01 테스트 ~ 10 게임 대역 서버).
-자세한 표는 [run/README.md](run/README.md). 인터프리터는 `venv\Scripts\python.exe`.
-
-## 화면으로 보기 (Unity 전투 뷰어)
-
-```bash
-# Unity 4개 중 1개를 창으로: 학습 판 표본이 재생된다 (창에서 '학습 판 자동 따라보기' 켜기)
-python -m balance_qa --workers 4 --game-cmd "unity_game/Build/QaArena.exe -batchmode -nographics -qaPort {port}" --view 1 impala --cls warrior --persona stable
-```
-PyCharm: `00b 전체 사이클 (Unity 화면)` — 사이클 점검 후 같은 seed 로 손 튜닝 → CMA-ES → IMPALA 판을 창에 차례로 재생.
-
-## 실제 게임(Unity) 연결
-
-1. Unity 쪽에서 [docs/PROTOCOL.md](docs/PROTOCOL.md) 를 구현 (부록 A에 C# 뼈대)
-2. 빌드를 포트 인자와 함께 실행 → `python -m balance_qa check-game --game 127.0.0.1:7777` 통과 확인
-3. 학습 명령에 연결 정보만 바꿔서 실행
-
-```bash
-# 이미 떠 있는 인스턴스들
-python -m balance_qa --game 127.0.0.1:7777,127.0.0.1:7778 optimize --cls mage --persona stable
-# 명령 템플릿으로 N개 실행
-python -m balance_qa --workers 8 --game-cmd "Build/Game.exe -batchmode -nographics -qaPort {port}" optimize ...
-```
-
-게임 대역만 따로 띄울 수도 있습니다: `python -m game_sim serve --port 7777`
-
-## 실험 (설계 문서 10장)
-
-| 스크립트 | 가설 | 내용 |
+| Decision | Who makes it | How often |
 |---|---|---|
-| `experiments.e0_sanity` | — | 프로토콜 적합성, 처리량, 기본값 매트릭스, 필요 표본 수 |
-| `experiments.e1_tuning_bias` | H1 | 손 튜닝 vs 동일 예산 최적화의 직업 순위·격차 |
-| `experiments.e2_effect_size` | H2 | 파라미터 효과(OAT) vs 패치 효과 |
-| `experiments.e3_patch_drift` | H3 | 패치 시나리오별 최적 파라미터 이동 |
-| `experiments.e4_balance_break` | H4 | 정의서 범위 안 최속 조합 탐색 |
-| `experiments.e5_persona_matrix` | H5 | 페르소나 × 직업 매트릭스 |
-| `experiments.e6_convergence` | H6 | 무작위 탐색 vs CMA-ES 예산별 성능 |
-| `experiments.e7_trigger_policy` | H7 | 판당 1회 vs 트리거 정책 (ES / IMPALA) |
+| Behavior structure (blocks, need functions) | Designers, in the game's BT | Design time |
+| Block weights `w` in `score = N(situation) × w` | **RL — the only thing it learns** | Once per fight, or at trigger points (boss HP 75/50/25 %) |
+| Moment-to-moment combat actions | The BT itself | Every 0.3 s |
+| Non-combat play (talk, shop, travel) | An LLM pilot (optional) | Rarely |
 
-```bash
-python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game host:port,...]
+Small, declared learning targets keep the policy interpretable (a handful of named weights), cheap to train, and
+reusable across games: the learning side never sees skills, stats or game code — only the declared parameters.
+
+## How it works
+
+```
+┌──────────── Game (Unity or Python) ────────────┐                 ┌──────────── Learning platform ────────────┐
+│ combat sim + behavior tree (deterministic, seed)│                 │ balance_qa (PyTorch CPU)                   │
+│ IEpisodeHost: declare() / run_episode()         │ ◀── TCP JSON ──▶ │   learnable space = declared block weights │
+│ BT-QA Game SDK: server, validation, triggers    │    Lines 1.3     │   personas = non-weight settings + rewards │
+└─────────────────────────────────────────────────┘                 │   CMA-ES · IMPALA (V-trace, remote actors) │
+                                                                    └────────────────────────────────────────────┘
 ```
 
-자세한 구조는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- **Weights-only, enforced.** The game declares `blocks: [{name, weight}]`. The SDK refuses to start if anything else is
+  marked learnable, and the learner rejects any other learning target. Non-weight values (potion threshold, resource
+  reserve…) stay at the designers' defaults or come from a persona.
+- **Personas** (aggressive / stable / efficient) set need-function thresholds and reward coefficients
+  (`R = −minutes − λ_death·deaths − λ_consumable·items − penalty·[fail]`); each gets its own optimal weights.
+- **Two learners on one interface:** CMA-ES picks static weights per fight; IMPALA (Beta actor-critic, V-trace) changes
+  weights at trigger points from the fight state. Actors are separate processes, one per game instance, so the same
+  code can run local or remote actors.
+- **Determinism is part of the contract:** same class, scenario, seed, params and trigger replies → byte-identical
+  result. A conformance checker verifies this, along with the message formats, error codes and trigger round-trips.
+- **Play mode:** the game can also be played from the start (village → field → boss). Non-combat actions come from
+  an LLM pilot or a script; when a fight starts, the learned weights take over, and the outcome matches the
+  balance-mode episode exactly.
+
+![Play mode: village quests, forest, and the wolf king fought by the learned BT](docs/media/play_mode.gif)
+
+*Play mode from the first village: tutorial quests by a scripted pilot, the wolf king fought by the IMPALA-tuned BT.*
+
+## Results
+
+Unity build `qa_arena 0.7.0`, persona *stable*, 200–300 evaluation episodes on held-out seeds, mean [95 % CI].
+Only the three block weights are learned.
+
+| Class / fight | Hand-tuned defaults | CMA-ES (3,000 episodes) | IMPALA |
+|---|---|---|---|
+| Warrior vs arena boss | clear 62 % · deaths 1.01 | clear **100 %** · deaths 0.52 · 362 s | clear 99 % · deaths 0.49 · 405 s (8,000 ep.) |
+| Mage vs arena boss | clear 62 % · deaths 2.75 | clear **89 %** · deaths 2.06 · 434 s | — |
+| Warrior vs wolf king (field boss) | clear 60 % · deaths 2.06 | clear **100 %** · deaths 1.26 · 351 s | clear 99 % · deaths 1.22 · 341 s (3,000 ep.) |
+
+- **Cost:** one episode takes 1–2 ms in the headless Unity build. The full measurement above — baselines for 3 classes ×
+  2 personas, two CMA-ES runs and one IMPALA run — took **about 20 seconds** on CPU with 4 game instances.
+- **Same seed, different outcome:** the GIF at the top is evaluation seed 1000003. The hand-tuned BT times out at
+  10:00 with the boss at 0.2 %; both learned BTs clear it.
+
+### What the platform surfaced along the way
+
+The measurement history across builds (see `docs/STATUS.md`, in Korean) is where the tool earned its keep:
+
+- **Revive used as a heal.** In build 0.3.0 the learned weights cleared 94–98 % of fights but died 2–3 times per run.
+  Dying and reviving was cheaper than defending. This led to revive and regen changes in the game (0.4.0).
+- **A persona that learned to give up.** Without a failure penalty, the *stable* warrior learned to survive until the
+  timer ran out (0 % clears). We added an explicit failure term to the reward. It is a deliberate deviation from the
+  original proposal and is documented as such.
+- **A class that died too much.** Hand-tuned warrior cleared 55 % with about 3 deaths per run, and even optimized weights
+  still died about twice per run. That pointed to the class itself, so we sent a balance request to the game side. The
+  armor change in 0.5.0 brought hand-tuned to 62 % with 1.01 deaths per run, about a third of before.
+- **Open:** hand-tuned mage reportedly clears 0 % against the wolf king. The next step is telling a parameter problem
+  from a boss-design problem.
+
+## Repository layout
+
+```
+balance_qa/     learning platform: protocol client, CMA-ES / ES / IMPALA (PyTorch CPU), rewards, evaluation, reports
+play_agent/     play-mode client: loadout from learned results, numpy policy runner, optional LLM pilot (Claude API)
+game_sim/       Python reference game (BT, combat sim) — test double and reference implementation
+btqa_game/      Game SDK, Python (copy — the original lives in a separate repository, see below)
+unity_game/     QaArena, the Unity test game (Unity 6000.0); SDK as embedded package Packages/com.btqa.game
+qa_specs/       personas
+experiments/    hypothesis experiments E0–E7
+run/            one-click run scripts (also registered as PyCharm run configurations)
+docs/           protocol (contract), play protocol, architecture, status — mostly Korean
+```
+
+The Game SDK (Unity package + Python package + protocol) is maintained separately at
+**[jk96491/btqa_sdk](https://github.com/jk96491/btqa_sdk)**. This repository vendors identical copies
+(`run/run_sync_sdk.py`); a test checks they match.
+
+## Quick start
+
+Requirements: Python 3.8+, `numpy`, `torch` (CPU). The Unity build is optional — the Python game runs everything.
+
+```bash
+pip install -r requirements.txt
+python -m unittest discover -s tests -t .                  # tests
+python -m balance_qa check-game                            # protocol conformance (Python game)
+python -m balance_qa --workers 4 optimize --cls warrior --persona stable --budget 3000          # CMA-ES
+python -m balance_qa --workers 4 impala   --cls warrior --persona stable --budget 8000 \
+    --init-params reports/<run_id>/params.json                                                  # IMPALA
+```
+
+With the Unity build (`unity_game/Build/QaArena.exe`, built with `unity_game/QaTools~/build.ps1`):
+
+```bash
+python run/run_full_cycle.py      # conformance → baseline → CMA-ES → IMPALA → report (set GAME_CMD = UNITY)
+python run/run_watch.py           # replay saved results side by side in Unity windows (top GIF)
+python run/run_watch_play.py      # play mode from the village, combat by the learned BT (second GIF)
+```
+
+To connect your own game, implement `IEpisodeHost` with the SDK and pass `python -m btqa_game check --game host:port`.
+
+## Limitations
+
+- **Toy environment.** 1-vs-1 boss fights on a one-dimensional distance axis, three classes. Read the numbers as trends
+  and relative sizes, not as claims about a real game.
+- **Integration prerequisite.** The game must run its combat headless, deterministically and fast (milliseconds per
+  episode). Separating combat logic from rendering is the main cost of adopting this. In QaArena, the game-specific
+  glue is one ~100-line class.
+- **Few learning targets by design.** With three weights a grid search is a fair baseline, and IMPALA's trigger-time
+  policy is not yet clearly better than CMA-ES's static weights here. Showing where state-dependent weights matter
+  (experiment E7) is open work. Scaling all weights by the same factor doesn't change behavior; this redundancy is left
+  as is.
+- **Not yet done:** a live run of the LLM pilot (implemented, tested against a fake API), full-scale runs of
+  experiments E1–E7, and a cost comparison against an LLM-only player.
+
+## Background
+
+This continues my article series on applying RL to games,
+[「実録・ゲーム強化学習適用記」 (Qiita, Japanese)](https://qiita.com/raptorjung/items/0be8fb02181c83735bf5).
+The previous part moved execution to rule-based behavior and kept RL for judgment. It ended with an open question: how
+to fine-tune fixed rule-based actions without losing stability. This project answers it, and also removes RL's
+dependence on any single game.
+
+*Code identifiers and this README are in English. Internal docs and code comments are in Korean
+(Korean overview: [docs/README.ko.md](docs/README.ko.md)).*
