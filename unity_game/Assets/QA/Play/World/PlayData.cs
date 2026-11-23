@@ -87,6 +87,7 @@ namespace Qa.Play.World
     public sealed class QuestDef
     {
         public string Id, Title, Giver, Next;
+        public string ReadyNotice;   // 반납 대상만 남았을 때(ready) 띄울 안내 — 어디로 가야 하는지
         public string[] Requires = new string[0];
         public bool StartActive, AutoComplete, ConsumeItems;
         public readonly List<ObjectiveDef> Objectives = new List<ObjectiveDef>();
@@ -228,6 +229,7 @@ namespace Qa.Play.World
                         Id = (string)qt["id"], Title = (string)qt["title"], Giver = (string)qt["giver"], Next = (string)qt["next"],
                         Requires = Strings(qt["requires"]), StartActive = (bool?)qt["start_active"] ?? false,
                         AutoComplete = (bool?)qt["auto_complete"] ?? false, ConsumeItems = (bool?)qt["consume_items"] ?? false,
+                        ReadyNotice = (string)qt["ready_notice"],
                     };
                     foreach (var ot in (JArray)qt["objectives"] ?? new JArray())
                         q.Objectives.Add(new ObjectiveDef

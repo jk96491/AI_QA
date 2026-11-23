@@ -83,3 +83,13 @@ venv\Scripts\python.exe unity_game/QaTools~/play_check.py --game 127.0.0.1:7800 
 - 트리거 응답 대기 중 Unity 메인 스레드가 멈춘다 — 창이 잠깐 "응답 없음"으로 보일 수 있음 (응답이 오면 계속)
 - 헤드리스 Player.log 의 셰이더 `ERROR ... not supported on this GPU` 는 `-nographics` 정상 메시지
 - 창 모드 화면은 캡처로 확인함 (한글 TMP 글꼴·HUD·전투 장면 정상). 늑대왕은 전투 장면에서 기존 보스 모델(골렘)을 이름만 바꿔 쓴다
+
+## 0.7.1 — 플레이 프로토콜 v0.3 (`PLAY_PROTOCOL_0.3_REQUEST.md`)
+
+- P1 hello `0.3` 만 받음 (0.1 → `protocol_version`). F2 `unknown_boss` → `boss_mismatch`.
+- P2 `play_description.pilot_notes {max_chars:200, kinds}`. P3 `pilot_note` → `pilot_note_ok` (reset 전 `not_reset`, 전투 중 `busy`, 잘못된 kind·빈 text `bad_request`, 200자 초과 …, 줄바꿈 → 공백). P4 `play_log` 에 `pilot_note`.
+- P5 별도 캔버스(GraphicRaycaster 없음, blocksRaycasts=false, QaIgnore): 왼쪽 아래 "QA 플레이어" 패널 4줄, thought·plan 말풍선 4초, finding 상단 토스트 4초. 전투 장면 중에도 패널 유지. 헤드리스·`-qaNoPilotNotes` 는 표시 안 함.
+- 계약 v0.3 4.7 (전투 물약 = 인벤토리): `combat_started.potions{item,available,carried,cap}`·`field_state`·`start_state:"barrier_inventory_potions"`, `aftermath.potions_used` 만큼 인벤토리 차감, `barrier_restore` 사건. 밸런스 모드 영향 없음 (`CombatSim.SetStartPotions` 는 플레이 모드만 호출).
+- G1 퀘스트 문구 "마을 남동쪽 초소의 경비병에게 보고" + 늑대왕 처치 후 `notice` 사건·화면 안내 + 촌장(after)·상인(q_tut_05 중) 대사에 경비병 위치. G3 전투 화면에 결계 안내 문구, 결과에 물약 사용·차감 표시.
+- 검증: `check-game` 37/37, `play_check.py` 120항목 (T-P 물약·T-N1~N5 추가) — 첫 실행 119/120 (검사 스크립트 seq 버그) → 수정 후 T7·T-N3 재실행 7/7 PASS.
+- 미완: 창 모드 스크린샷 미첨부. **학습 쪽 `play_agent/check.py` 갱신 필요**: `start_state == "full"` 기대(→ `barrier_inventory_potions`), T5 는 물약 cap 이상 등록 후 비교해야 함 (퀵슬롯 물약 없으면 carried 0).

@@ -20,13 +20,19 @@
                     "choices": [{"text": "여기 있습니다", "next": "reward", "effects": [{"complete_quest": "q_tut_02"}]}]},
         "reward": {"speaker": "촌장", "text": "보답으로 물약을 주지. 인벤토리를 열어 물약을 퀵슬롯에 등록해 두게. 모자라면 상인에게 사고.",
                    "choices": [{"text": "알겠습니다", "next": null}]},
-        "after": {"speaker": "촌장", "text": "숲은 위험하니 늘 조심하게.",
+        "after": {"speaker": "촌장", "text": "숲은 위험하니 늘 조심하게. 늑대왕 일이라면 마을 남동쪽 초소의 경비병이 맡고 있네.",
                   "choices": [{"text": "네", "next": null}]}
       }
     },
     "npc_merchant": {
-      "start": "greet",
+      "start": [
+        {"if": "quest:q_tut_05=active", "node": "greet_hunt"},
+        {"node": "greet"}
+      ],
       "nodes": {
+        "greet_hunt": {"speaker": "상인", "text": "늑대왕을 잡으러 간다고? 숲 입구는 마을 북쪽 끝이네. 잡고 나면 마을 남동쪽 초소의 경비병에게 꼭 알리게. 필요한 게 있나?",
+                       "choices": [{"text": "물건을 보여 주세요", "next": null, "effects": [{"open_shop": "npc_merchant"}]},
+                                   {"text": "됐습니다", "next": null}]},
         "greet": {"speaker": "상인", "text": "어서 오게, 필요한 게 있나?",
                   "choices": [{"text": "물건을 보여 주세요", "next": null, "effects": [{"open_shop": "npc_merchant"}]},
                               {"text": "됐습니다", "next": null}]}

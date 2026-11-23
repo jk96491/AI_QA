@@ -1,4 +1,4 @@
-// 플레이 모드 진입점: QaArena.exe -qaPlay -qaPort 7800 [-qaPlaySeed 1] [-qaPlaySpeed 1] [-qaPlayOmniscient]
+// 플레이 모드 진입점: QaArena.exe -qaPlay -qaPort 7800 [-qaPlaySeed 1] [-qaPlaySpeed 1] [-qaPlayOmniscient] [-qaNoPilotNotes]
 // -qaPlay 가 없으면 아무것도 하지 않는다 (밸런스 QA 모드는 QaBoot 가 그대로 처리).
 using Btqa.Game;
 using System;
@@ -96,7 +96,11 @@ namespace Qa.Play.Server
             }
             Server = server;
             var logView = scene as IActionLogView;
-            session = new PlaySession(server, repo, data, scene, opt, s => logView?.AddLog(s), new Qa.Sim.SimConfig());   // 밸런스 모드(QaBoot)와 같은 기본 설정
+            // pilot_note 표시: 창 모드만 (헤드리스는 로그만, -qaNoPilotNotes 는 녹화용으로 숨김)
+            var noteView = Application.isBatchMode || PlayArgs.Has("-qaNoPilotNotes") ? null : scene as IPilotNoteView;
+            Action<string, string> onNote = null;
+            if (noteView != null) onNote = (k, t) => noteView.ShowPilotNote(k, t);
+            session = new PlaySession(server, repo, data, scene, opt, s => logView?.AddLog(s), new Qa.Sim.SimConfig(), onNote);   // 밸런스 모드(QaBoot)와 같은 기본 설정
             var go = new GameObject("PlayDriver");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<PlayDriver>().Session = session;
@@ -114,5 +118,11 @@ namespace Qa.Play.Server
     public interface IActionLogView
     {
         void AddLog(string line);
+    }
+
+    /// <summary>플레이어(LLM) 생각 메모 표시 (pilot_note, v0.3). 입력·관찰에 영향을 주면 안 된다.</summary>
+    public interface IPilotNoteView
+    {
+        void ShowPilotNote(string kind, string text);
     }
 }

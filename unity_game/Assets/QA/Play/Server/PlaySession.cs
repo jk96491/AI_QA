@@ -1,5 +1,5 @@
 // 플레이 모드 메시지 처리 (PLAY_PROTOCOL 4장). 메인 스레드에서 Pump() 로 돈다.
-//   hello, play_describe, set_loadout, reset, observe, act, get_log, bye
+//   hello, play_describe, set_loadout, reset, observe, act, get_log, pilot_note(v0.3), bye
 //   act 중 전투: combat_started → (trigger ↔ trigger_response)* → combat_ended → action_result. 전투 중 다른 요청 → error(busy)
 // 세계 정지: 시간은 act 처리 중 ActionRunner.Tick 에서만 흐른다. 응답을 보낸 뒤 다음 요청까지 아무것도 Step 하지 않는다.
 using Btqa.Game;
@@ -21,7 +21,7 @@ namespace Qa.Play.Server
     public static class PP
     {
         public const string Protocol = "play";
-        public const string ProtocolVersion = "0.1";
+        public const string ProtocolVersion = "0.3";
 
         public const string Hello = "hello", HelloOk = "hello_ok";
         public const string Describe = "play_describe", Description = "play_description";
@@ -30,9 +30,16 @@ namespace Qa.Play.Server
         public const string Observation = "observation", ActionResult = "action_result";
         public const string TriggerResponse = "trigger_response", Trigger = "trigger", LoadoutOk = "loadout_ok";
         public const string CombatStarted = "combat_started", CombatEnded = "combat_ended";
+        public const string PilotNote = "pilot_note", PilotNoteOk = "pilot_note_ok";
+
+        /// <summary>조우 시작 상태 (v0.3): 체력·자원 = 보스 결계 회복 full, 물약 = 퀵슬롯 등록 물약 min(보유, cap).</summary>
+        public const string EncounterStartState = "barrier_inventory_potions";
+        /// <summary>pilot_note (4.10) 종류·최대 길이.</summary>
+        public static readonly string[] PilotKinds = { "thought", "plan", "finding" };
+        public const int PilotMaxChars = 200;
 
         // 밸런스 프로토콜 오류 코드 + 플레이 추가분 (4.9)
-        public const string EUnknownBoss = "unknown_boss", EUnknownAction = "unknown_action", EBusy = "busy", ENotReset = "not_reset";
+        public const string EBossMismatch = "boss_mismatch", EUnknownAction = "unknown_action", EBusy = "busy", ENotReset = "not_reset";
 
         /// <summary>P1 에서 구현한 행동 (play_describe.actions 에 이것만 싣는다).</summary>
         public static readonly string[] Actions = { "move_to", "interact", "ui_click", "use_item", "engage", "wait" };
@@ -58,6 +65,7 @@ namespace Qa.Play.Server
         readonly SemanticObserver _semantic;
         readonly HierarchyObserver _hier;
         readonly Action<string> _onAction;   // 관람용 로그 표시
+        readonly Action<string, string> _onPilotNote;   // 플레이어 메모 표시 (헤드리스·-qaNoPilotNotes 는 null)
 
         WorldState _world;
         readonly PlayLog _log = new PlayLog();
@@ -88,6 +96,8 @@ namespace Qa.Play.Server
             public EntityState Enemy;
             public string EncounterId;
             public int PendingIndex = -1;
+            public string PotionItem;      // 전투에 가져간 물약 아이템 (null = 없음)
+            public int Carried;
         }
 
         sealed class CombatAbort : Exception
@@ -95,7 +105,8 @@ namespace Qa.Play.Server
             public CombatAbort(string m) : base(m) { }
         }
 
-        public PlaySession(PlayServer server, SpecRepository repo, PlayData data, IPlayScene scene, PlayOptions opt, Action<string> onAction, SimConfig cfg)
+        public PlaySession(PlayServer server, SpecRepository repo, PlayData data, IPlayScene scene, PlayOptions opt, Action<string> onAction, SimConfig cfg,
+                           Action<string, string> onPilotNote = null)
         {
             _cfg = cfg;
             _server = server;
@@ -104,6 +115,7 @@ namespace Qa.Play.Server
             _scene = scene;
             _opt = opt;
             _onAction = onAction ?? (_ => { });
+            _onPilotNote = onPilotNote;
             _semantic = new SemanticObserver(scene, opt.Omniscient);
             _hier = new HierarchyObserver(scene, opt.Omniscient);
         }
@@ -237,14 +249,22 @@ namespace Qa.Play.Server
             var spec = _repo.Class(w.Class);
             var entry = _loadout.Find(w.Class, scen);
             long seed = w.BeginEncounter(enemy, out var encId);
-            var c = new ActiveCombat { Enemy = enemy, EncounterId = encId };
+            // 보스 결계 (v0.3): 회복 직전 필드 상태를 기록하고, 물약은 퀵슬롯에 등록한 것을 min(보유, cap) 개 가져간다
+            var potionItem = w.QuickSlotPotion();
+            int available = potionItem != null ? w.CountOf(potionItem) : 0;
+            int cap = spec.Stats.Potions;
+            int carried = Math.Min(available, cap);
+            var fieldState = w.Barrier(encId, potionItem, carried);
+            var c = new ActiveCombat { Enemy = enemy, EncounterId = encId, PotionItem = potionItem, Carried = carried };
             var started = new JObject
             {
                 ["type"] = PP.CombatStarted, ["seq"] = _actSeq?.DeepClone(), ["encounter_id"] = encId, ["enemy"] = enemy.Id,
                 ["boss"] = boss.Name, ["class"] = w.Class, ["scenario"] = scen, ["seed"] = seed,
                 ["loadout"] = new JObject { ["matched"] = entry != null, ["source"] = entry?.Source, ["persona"] = _loadout.Persona },
                 ["triggers"] = entry != null && entry.Triggers.Count > 0 ? new JObject { ["boss_hp_below"] = new JArray(entry.Triggers) } : null,
-                ["start_state"] = "full",
+                ["start_state"] = PP.EncounterStartState,
+                ["field_state"] = fieldState,
+                ["potions"] = new JObject { ["item"] = potionItem, ["available"] = available, ["carried"] = carried, ["cap"] = cap },
             };
             _log.Add(w.Time, "combat_start", started.DeepClone());
             _onAction("전투 시작 " + enemy.Id + " (" + scen + ", seed " + seed + ", loadout " + (entry != null ? "학습값" : "default") + ")");
@@ -268,6 +288,7 @@ namespace Qa.Play.Server
             // 밸런스 run_episode 와 같은 인자: 같은 (class, scenario, seed, params, 트리거 응답) → 같은 result (T5)
             c.Sim = new CombatSim(spec, boss, entry?.Params, seed, new JValue(seed), cfg,
                                   entry != null && entry.Triggers.Count > 0 ? entry.Triggers : null, onTrigger);
+            c.Sim.SetStartPotions(carried);   // carried == cap 이면 밸런스 run_episode 와 같은 판 (T5)
             _combat = c;
             _combatAcc = 0;
             _combatAbort = null;
@@ -276,8 +297,15 @@ namespace Qa.Play.Server
                 SendMid(started);
                 if (c.Pres == null) _scene.SyncCombat(_world, c.Enemy, c.Sim);
                 c.Sim.Begin();   // index 0 트리거
-                c.Pres?.Begin(c.Sim, w.Class, scen, seed, enemy.Def.Label, _scene.SetFieldVisible);
+                c.Pres?.Begin(c.Sim, w.Class, scen, seed, enemy.Def.Label, _scene.SetFieldVisible, BarrierText(potionItem, carried, cap));
             });
+        }
+
+        string BarrierText(string item, int carried, int cap)
+        {
+            var label = item != null ? (_data.Item(item)?.Label ?? item) : null;
+            return "보스 결계: 체력과 자원이 전투 준비 상태로 회복됩니다. 물약은 퀵슬롯에서 " +
+                   (label != null ? label + " " + carried + "/" + cap + "개" : "0/" + cap + "개 (퀵슬롯에 물약 없음)") + "를 가져갑니다";
         }
 
         void PumpCombat(double realDelta)
@@ -385,7 +413,7 @@ namespace Qa.Play.Server
             var result = (JObject)c.Sim.Result().DeepClone();
             result.Remove("events");   // 연출용 기록 — run_episode(record_events 없음)와 같은 필드만
             w.AddSeconds(c.Sim.Time);
-            var aftermath = w.EndEncounter(c.Enemy, c.EncounterId, c.Sim.Cleared);
+            var aftermath = w.EndEncounter(c.Enemy, c.EncounterId, c.Sim.Cleared, c.Sim.Deaths, c.PotionItem, Math.Min(c.Carried, c.Sim.ConsumablesUsed));
             _combat = null;
             c.Pres?.End();
             _scene.EndCombat();
@@ -423,6 +451,7 @@ namespace Qa.Play.Server
                 case PP.Observe: DoObserve(msg); return;
                 case PP.Act: DoAct(msg); return;
                 case PP.GetLog: DoGetLog(msg); return;
+                case PP.PilotNote: DoPilotNote(msg); return;
                 case PP.Bye: Reply(null, true); return;
                 case PP.SetLoadout:
                 {
@@ -495,10 +524,11 @@ namespace Qa.Play.Server
                 {
                     ["trigger_state_features"] = new JArray(P.TriggerStateFeatures),
                     ["trigger_totals"] = new JArray(P.TriggerTotalsFields),
-                    ["encounter_start_state"] = "full",
+                    ["encounter_start_state"] = PP.EncounterStartState,
                     ["encounters"] = Encounters(),
                 },
                 ["quests"] = QuestList(),
+                ["pilot_notes"] = new JObject { ["max_chars"] = PP.PilotMaxChars, ["kinds"] = new JArray(PP.PilotKinds) },
                 ["stage"] = "P3",
             };
         }
@@ -655,6 +685,39 @@ namespace Qa.Play.Server
                 m["observation"] = _semantic.Build(_world, _obsSeq++);
                 return m;
             });
+        }
+
+        /// <summary>pilot_note (4.10): 플레이어 생각을 화면에 띄우고 로그에 남긴다. 세계 시간·관찰·난수는 건드리지 않는다.</summary>
+        void DoPilotNote(JObject msg)
+        {
+            RequireReset();
+            var kind = msg["kind"]?.Type == JTokenType.String ? (string)msg["kind"] : null;
+            if (kind == null || Array.IndexOf(PP.PilotKinds, kind) < 0)
+                throw new ProtocolException(P.EBadRequest, "pilot_note kind 는 " + string.Join("|", PP.PilotKinds) + " 중 하나: '" + msg["kind"] + "'");
+            var raw = msg["text"]?.Type == JTokenType.String ? (string)msg["text"] : null;
+            var text = OneLine(raw);
+            if (text.Length == 0) throw new ProtocolException(P.EBadRequest, "pilot_note text 가 비었음 (문자열 필요)");
+            if (text.Length > PP.PilotMaxChars) text = text.Substring(0, PP.PilotMaxChars - 1) + "…";
+            _log.Add(_world.Time, PP.PilotNote, new JObject { ["kind"] = kind, ["text"] = text });
+            _onPilotNote?.Invoke(kind, text);
+            var ok = new JObject { ["type"] = PP.PilotNoteOk };
+            if (msg["seq"] != null) ok["seq"] = msg["seq"].DeepClone();
+            Reply(ok);
+        }
+
+        /// <summary>줄바꿈·연속 공백을 공백 하나로 (메모는 한 줄).</summary>
+        static string OneLine(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            var sb = new System.Text.StringBuilder(s.Length);
+            bool sp = false;
+            foreach (var ch in s)
+            {
+                if (char.IsWhiteSpace(ch)) { sp = sb.Length > 0; continue; }
+                if (sp) { sb.Append(' '); sp = false; }
+                sb.Append(ch);
+            }
+            return sb.ToString();
         }
 
         void DoGetLog(JObject msg)

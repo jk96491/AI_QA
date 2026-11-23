@@ -321,6 +321,7 @@ namespace Qa.Presentation
                 "기믹 성공 " + r["gimmick_success"] + " / 실패 " + r["gimmick_fail"] +
                 (cleared ? "" : "   보스 체력 " + (r["boss_hp_remaining"].Value<double>() * 100).ToString("0") + "% 남음");
             if (stalled) lines += "\n<color=#FFB060>" + r["stall_reason"] + "</color>";
+            if (_playMode) lines += "\n<color=#9AD0FF>물약 " + r["consumables_used"] + "개 사용 → 인벤토리에서 차감 (퀵슬롯 물약)</color>";
             GUI.Label(new Rect(x + 20, y + 54, w - 40, 70), lines, _rich);
             // 블록 점유 비율
             var bt = (JObject)r["block_time"];

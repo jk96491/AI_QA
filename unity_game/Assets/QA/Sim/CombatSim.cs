@@ -76,6 +76,13 @@ namespace Qa.Sim
             _useTriggers = _pendingTriggers.Count > 0 && onTrigger != null;
         }
 
+        /// <summary>시작 물약 수 덮어쓰기 (플레이 모드: 인벤토리에서 가져간 수, v0.3). Begin 전에만. 밸런스 run_episode 는 부르지 않는다 (= 직업 potions).</summary>
+        public void SetStartPotions(int n)
+        {
+            if (_begun) throw new InvalidOperationException("SetStartPotions 는 판 시작 전에만");
+            _p.Potions = Math.Max(0, n);
+        }
+
         // ------------------------------------------------------------------ 관측
         Observation Observe()
         {

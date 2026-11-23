@@ -28,6 +28,7 @@ namespace Qa.Presentation
         Action<bool> _setField;
         float _playSpeed = 1f;
         string _bossTitle = "돌의 군주";
+        string _barrierNote;       // 보스 결계 안내 (v0.3: 체력·자원 회복, 물약은 퀵슬롯에서)
 
         // 아레나 조명 (필드와 공유하는 전역 RenderSettings 를 전투 동안만 바꾼다)
         bool _savedFog;
@@ -95,7 +96,7 @@ namespace Qa.Presentation
         }
 
         // ------------------------------------------------------------------ ICombatPresenter
-        public void Begin(CombatSim sim, string cls, string scenario, long seed, string bossTitle, Action<bool> setFieldVisible)
+        public void Begin(CombatSim sim, string cls, string scenario, long seed, string bossTitle, Action<bool> setFieldVisible, string barrierNote)
         {
             if (_world == null) StartPlayMode();
             _setField = setFieldVisible;
@@ -108,6 +109,7 @@ namespace Qa.Presentation
             _bossSpec = _repo.BossFor(scenario);
             _seed = seed;
             _bossTitle = bossTitle ?? "보스";
+            _barrierNote = barrierNote;
             if (_player == null || _playerClass != cls)
             {
                 if (_player != null) Destroy(_player.Root.gameObject);
@@ -130,6 +132,7 @@ namespace Qa.Presentation
             _fadeOutT = -1f;
             _presenting = true;
             LogLine("<b>조우!</b> — " + _spec.DisplayName + " vs " + _bossTitle + ", 시나리오 " + _scenario + ", seed " + seed);
+            if (!string.IsNullOrEmpty(_barrierNote)) LogLine("<color=#9AD0FF>" + _barrierNote + "</color>");
         }
 
         /// <summary>한 프레임. 판은 Fight 단계에서만 진행한다. 연출까지 끝나면 true.</summary>
@@ -156,6 +159,8 @@ namespace Qa.Presentation
                         _phaseT = 0f;
                         ConsumeEvents();   // 판 시작(트리거 0 등) 이벤트
                         Banner("전투 시작!", new Color(1f, 0.85f, 0.4f));
+                        if (_player != null && !string.IsNullOrEmpty(_barrierNote))
+                            _fx?.Text(HeadPos(_player) + Vector3.up * 1.6f, "보스 결계: 체력·자원 회복", new Color(0.6f, 0.85f, 1f), 18, 2.4f);
                     }
                     break;
                 case PlayPhase.Fight:

@@ -33,7 +33,8 @@ namespace Qa.Play.Perception
     /// </summary>
     public interface ICombatPresenter
     {
-        void Begin(Qa.Sim.CombatSim sim, string cls, string scenario, long seed, string bossTitle, Action<bool> setFieldVisible);
+        /// <param name="barrierNote">보스 결계 안내 문구 (회복·가져간 물약 수) — 화면 표시만</param>
+        void Begin(Qa.Sim.CombatSim sim, string cls, string scenario, long seed, string bossTitle, Action<bool> setFieldVisible, string barrierNote);
         /// <summary>한 프레임 진행. 판과 마무리 연출이 끝나면 true.</summary>
         bool Tick(double realDelta, double speed);
         void OnTrigger(int index);

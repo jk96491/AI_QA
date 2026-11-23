@@ -12,7 +12,7 @@ using UnityEngine.UI;
 
 namespace Qa.Presentation.Play
 {
-    public sealed class PlayView : MonoBehaviour, IPlayScene, Qa.Play.Server.IActionLogView
+    public sealed class PlayView : MonoBehaviour, IPlayScene, Qa.Play.Server.IActionLogView, Qa.Play.Server.IPilotNoteView
     {
         public const int MaxChoices = 4;
 
@@ -49,6 +49,24 @@ namespace Qa.Presentation.Play
         TMP_Text _combatText;
         Vector3 _combatDir;
         string _combatEnemy;
+
+        // 게임 안내 토스트 (WorldState.Notice — 관찰에는 notice 사건으로 보인다)
+        GameObject _notice;
+        TMP_Text _noticeText;
+        int _noticeShown;
+        float _noticeUntil;
+
+        // "QA 플레이어" 메모 (pilot_note, v0.3): 별도 캔버스, 레이캐스터 없음·blocksRaycasts=false·QaTag 없음 → ui_click 가림·관찰 무관
+        public const int PilotLines = 4;
+        public const float PilotBubbleSeconds = 4f;
+        RectTransform _pilotRoot;
+        readonly TMP_Text[] _pilotLine = new TMP_Text[PilotLines];
+        readonly List<KeyValuePair<string, string>> _pilotNotes = new List<KeyValuePair<string, string>>();
+        GameObject _pilotPanel, _bubble, _toast;
+        TMP_Text _bubbleText, _toastText;
+        RectTransform _bubbleRt;
+        float _bubbleUntil, _toastUntil;
+        bool _fieldVisible = true;
 
         public IReadOnlyList<QaTag> WorldTags => _tags;
         public Transform UiRoot => _uiRoot;
@@ -203,6 +221,17 @@ namespace Qa.Presentation.Play
                 if (go.activeSelf != (e != null)) go.SetActive(e != null);
             }
 
+            if (w.NoticeCount != _noticeShown)
+            {
+                _noticeShown = w.NoticeCount;
+                if (w.Notice != null)
+                {
+                    _noticeText.text = w.Notice;
+                    _notice.SetActive(true);
+                    _noticeUntil = Time.unscaledTime + 6f;
+                }
+            }
+
             _hudZone.text = w.ZoneDef.Label;
             _hudGold.text = "골드 " + w.Gold;
             for (int i = 0; i < _hudQuick.Length; i++)
@@ -323,6 +352,7 @@ namespace Qa.Presentation.Play
 
         public void SetFieldVisible(bool visible)
         {
+            _fieldVisible = visible;
             if (_zoneRoot != null) _zoneRoot.gameObject.SetActive(visible);
             _cam.enabled = visible;
             _sun.enabled = visible;
@@ -335,6 +365,126 @@ namespace Qa.Presentation.Play
             _logLines.Enqueue(line);
             while (_logLines.Count > 5) _logLines.Dequeue();
             _log.text = string.Join("\n", _logLines);
+        }
+
+        // ------------------------------------------------------------------ 플레이어 메모 (pilot_note)
+        public void ShowPilotNote(string kind, string text)
+        {
+            if (_pilotRoot == null) BuildPilotUi();
+            _pilotNotes.Add(new KeyValuePair<string, string>(kind, text));
+            while (_pilotNotes.Count > PilotLines) _pilotNotes.RemoveAt(0);
+            _pilotPanel.SetActive(true);
+            for (int i = 0; i < PilotLines; i++)
+            {
+                bool on = i < _pilotNotes.Count;
+                _pilotLine[i].gameObject.SetActive(on);
+                if (!on) continue;
+                bool latest = i == _pilotNotes.Count - 1;
+                var k = _pilotNotes[i].Key;
+                var col = KindColor(k);
+                string hex = ColorUtility.ToHtmlStringRGB(col);
+                string body = k == "finding" ? "<b>" + Esc(_pilotNotes[i].Value) + "</b>" : Esc(_pilotNotes[i].Value);
+                _pilotLine[i].text = "<color=#" + hex + "><b>[" + KindLabel(k) + "]</b></color> " + body;
+                _pilotLine[i].alpha = latest ? 1f : 0.55f;
+            }
+            if (kind == "finding")
+            {
+                _toastText.text = "<b>발견</b>  " + Esc(text);
+                _toast.SetActive(true);
+                _toastUntil = Time.unscaledTime + PilotBubbleSeconds;
+            }
+            else
+            {
+                _bubbleText.text = Esc(text);
+                _bubbleText.color = kind == "plan" ? KindColor("plan") : Color.white;
+                _bubble.SetActive(_fieldVisible);
+                _bubbleUntil = Time.unscaledTime + PilotBubbleSeconds;
+            }
+        }
+
+        static string KindLabel(string k) => k == "plan" ? "계획" : k == "finding" ? "발견" : "생각";
+
+        static Color KindColor(string k) =>
+            k == "plan" ? new Color(0.45f, 0.8f, 1f) : k == "finding" ? new Color(1f, 0.6f, 0.2f) : new Color(0.85f, 0.85f, 0.85f);
+
+        static string Esc(string s) => s.Replace("<", "\u2039").Replace(">", "\u203A");   // TMP 리치 텍스트 태그로 해석되지 않게
+
+        void LateUpdate()
+        {
+            float now = Time.unscaledTime;
+            if (_notice != null && _notice.activeSelf && now > _noticeUntil) _notice.SetActive(false);
+            if (_pilotRoot == null) return;
+            if (_toast.activeSelf && now > _toastUntil) _toast.SetActive(false);
+            if (!_bubble.activeSelf) return;
+            if (now > _bubbleUntil || !_fieldVisible || _player == null) { _bubble.SetActive(false); return; }
+            var sp = _cam.WorldToScreenPoint(_player.position + Vector3.up * 1.6f);
+            if (sp.z <= 0) { _bubble.SetActive(false); return; }
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(_pilotRoot, sp, null, out var lp);
+            _bubbleRt.anchoredPosition = lp;
+        }
+
+        void BuildPilotUi()
+        {
+            // 필드 캔버스와 분리: 전투 장면(필드 캔버스 꺼짐) 중에도 보인다. GraphicRaycaster 를 달지 않는다.
+            var go = new GameObject("PilotCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(CanvasGroup));
+            go.transform.SetParent(transform, false);
+            go.AddComponent<QaIgnore>();
+            var cv = go.GetComponent<Canvas>();
+            cv.renderMode = RenderMode.ScreenSpaceOverlay;
+            cv.sortingOrder = 50;
+            var sc = go.GetComponent<CanvasScaler>();
+            sc.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            sc.referenceResolution = new Vector2(1280, 720);
+            sc.matchWidthOrHeight = 0.5f;
+            var cg = go.GetComponent<CanvasGroup>();
+            cg.blocksRaycasts = false;
+            cg.interactable = false;
+            _pilotRoot = (RectTransform)go.transform;
+
+            // 패널: 왼쪽 아래 (퀵슬롯 HUD 는 위쪽)
+            var panel = Rect("PilotPanel", _pilotRoot, new Vector2(0, 0), new Vector2(0, 0), new Vector2(12, 12), new Vector2(452, 196));
+            Img(panel, new Color(0.05f, 0.06f, 0.1f, 0.62f), false);
+            var title = Text("Title", panel, "QA 플레이어", 15, new Vector2(0, 1), new Vector2(1, 1), new Vector2(12, -24), new Vector2(-12, -4), null);
+            title.color = new Color(1f, 0.85f, 0.4f);
+            title.fontStyle = FontStyles.Bold;
+            for (int i = 0; i < PilotLines; i++)
+            {
+                float top = -26 - i * 40;
+                var t = Text("Line" + i, panel, "", 15, new Vector2(0, 1), new Vector2(1, 1), new Vector2(12, top - 40), new Vector2(-12, top), null);
+                t.alignment = TextAlignmentOptions.TopLeft;
+                t.textWrappingMode = TextWrappingModes.Normal;
+                t.maxVisibleLines = 2;
+                t.overflowMode = TextOverflowModes.Ellipsis;
+                t.richText = true;
+                _pilotLine[i] = t;
+                t.gameObject.SetActive(false);
+            }
+            _pilotPanel = panel.gameObject;
+
+            // 말풍선: 플레이어 머리 위 (thought·plan)
+            _bubbleRt = Rect("Bubble", _pilotRoot, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            _bubbleRt.sizeDelta = new Vector2(360, 64);
+            _bubbleRt.pivot = new Vector2(0.5f, 0f);
+            Img(_bubbleRt, new Color(0.08f, 0.08f, 0.12f, 0.82f), false);
+            _bubbleText = Text("Text", _bubbleRt, "", 16, Vector2.zero, Vector2.one, new Vector2(10, 4), new Vector2(-10, -4), null);
+            _bubbleText.alignment = TextAlignmentOptions.Center;
+            _bubbleText.textWrappingMode = TextWrappingModes.Normal;
+            _bubbleText.maxVisibleLines = 2;
+            _bubbleText.overflowMode = TextOverflowModes.Ellipsis;
+            _bubble = _bubbleRt.gameObject;
+            _bubble.SetActive(false);
+
+            // 토스트: 화면 위쪽 (finding)
+            var toast = Rect("FindingToast", _pilotRoot, new Vector2(0.2f, 1), new Vector2(0.8f, 1), new Vector2(0, -136), new Vector2(0, -68));
+            Img(toast, new Color(0.45f, 0.2f, 0.02f, 0.9f), false);
+            _toastText = Text("Text", toast, "", 18, Vector2.zero, Vector2.one, new Vector2(14, 4), new Vector2(-14, -4), null);
+            _toastText.alignment = TextAlignmentOptions.Center;
+            _toastText.color = new Color(1f, 0.88f, 0.7f);
+            _toastText.textWrappingMode = TextWrappingModes.Normal;
+            _toastText.maxVisibleLines = 2;
+            _toastText.overflowMode = TextOverflowModes.Ellipsis;
+            _toast = toast.gameObject;
+            _toast.SetActive(false);
         }
 
         // ------------------------------------------------------------------ UI 구성
@@ -464,6 +614,15 @@ namespace Qa.Presentation.Play
             _combatText.alignment = TextAlignmentOptions.Center;
             _combatHud = ch.gameObject;
             _combatHud.SetActive(false);
+
+            // 게임 안내 토스트 (관찰 제외 — 같은 내용이 관찰 events 의 notice 사건으로 간다)
+            var nt = Rect("NoticeToast", _uiRoot, new Vector2(0.22f, 0.7f), new Vector2(0.78f, 0.78f), Vector2.zero, Vector2.zero);
+            nt.gameObject.AddComponent<QaIgnore>();
+            Img(nt, new Color(0.1f, 0.25f, 0.15f, 0.88f), false);
+            _noticeText = Text("Text", nt, "", 20, Vector2.zero, Vector2.one, new Vector2(14, 0), new Vector2(-14, 0), null);
+            _noticeText.alignment = TextAlignmentOptions.Center;
+            _notice = nt.gameObject;
+            _notice.SetActive(false);
 
             // 관람용 행동 로그 (관찰 제외)
             var lg = Rect("ActionLog", _uiRoot, new Vector2(0, 0.45f), new Vector2(0.35f, 0.75f), new Vector2(12, 0), Vector2.zero);

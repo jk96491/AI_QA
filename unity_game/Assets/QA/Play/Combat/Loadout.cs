@@ -53,7 +53,7 @@ namespace Qa.Play.Combat
                 var bossName = repo.BossFor(scen).Name;
                 var boss = Str("boss");
                 if (e["boss"] != null && e["boss"].Type != JTokenType.Null && boss != bossName)
-                    throw new ProtocolException(PP.EUnknownBoss, "entries[" + i + "]: boss " + e["boss"] + " 는 시나리오 " + scen + " 의 보스(" + bossName + ")가 아님");
+                    throw new ProtocolException(PP.EBossMismatch, "entries[" + i + "]: boss " + e["boss"] + " 는 시나리오 " + scen + " 의 보스(" + bossName + ")가 아님");
                 var ps = e["params"];
                 if (ps != null && ps.Type != JTokenType.Null && ps.Type != JTokenType.Object)
                     throw new ProtocolException(P.EBadRequest, "entries[" + i + "].params 는 객체여야 함");

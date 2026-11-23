@@ -35,6 +35,7 @@ namespace Qa.Play.World
         public bool Accepted, Completed;
         public readonly int[] Stored;     // talk·buy·turn_in 진행 (collect·quickslot 은 인벤토리에서 계산)
         public int[] LastProgress;
+        public bool NoticeShown;          // ready_notice 를 띄웠는지 (한 번만)
         public QuestState(QuestDef def)
         {
             Def = def;
@@ -67,6 +68,7 @@ namespace Qa.Play.World
         public int Level = 1;
         public int Xp { get; private set; }
         public int Encounters { get; private set; }   // 조우 순번 (조우 seed 의 근원)
+        public int CombatDeaths { get; private set; } // 지금까지 전투에서 죽은 횟수 합 (field_state.deaths_so_far)
         public int Gold { get; private set; }
         public string PlayerState = "idle";   // idle / moving
 
@@ -80,6 +82,9 @@ namespace Qa.Play.World
         public string ShopNpc { get; private set; }
         public string ShopMessage { get; private set; }
         public string InventorySelected { get; private set; }
+        /// <summary>게임 안내 (notice 사건). 화면 토스트용 — 관찰에는 사건으로 보인다.</summary>
+        public string Notice { get; private set; }
+        public int NoticeCount { get; private set; }
 
         readonly SortedSet<string> _flags = new SortedSet<string>(StringComparer.Ordinal);
         public IEnumerable<string> Flags => _flags;
@@ -192,10 +197,44 @@ namespace Qa.Play.World
             }
         }
 
-        /// <summary>전투 종료 처리. 승리: 적 제거·전리품·경험치·kill 목표. 패배: 체크포인트 부활 (적은 그대로 = 체력 회복).</summary>
-        public JObject EndEncounter(EntityState enemy, string encounterId, bool cleared)
+        /// <summary>퀵슬롯에 등록된 첫 물약(회복 아이템) — 전투에 가져가는 물약 (PLAY_PROTOCOL 4.7, v0.3). 없으면 null.</summary>
+        public string QuickSlotPotion()
+        {
+            foreach (var it in QuickSlots)
+            {
+                if (it == null || CountOf(it) <= 0) continue;
+                var d = Data.Item(it);
+                if (d != null && d.Usable && d.HealRatio > 0) return it;
+            }
+            return null;
+        }
+
+        /// <summary>보스 결계: 회복 직전 필드 상태를 돌려주고 barrier_restore 사건. 체력·자원은 전투 준비 상태(full)로.</summary>
+        public JObject Barrier(string encounterId, string potionItem, int carried)
+        {
+            var before = new JObject
+            {
+                ["hp_ratio"] = Math.Round(HpRatio, 4),
+                ["resource_ratio"] = 1.0,   // 필드에는 자원 소모가 없다
+                ["potions"] = potionItem != null ? CountOf(potionItem) : 0,
+                ["deaths_so_far"] = CombatDeaths,
+            };
+            HpRatio = 1.0;
+            Emit("barrier_restore", new JObject
+            {
+                ["encounter_id"] = encounterId, ["field_state"] = before.DeepClone(),
+                ["potion_item"] = potionItem, ["potions_carried"] = carried,
+            });
+            return before;
+        }
+
+        /// <summary>전투 종료 처리. 승리: 적 제거·전리품·경험치·kill 목표. 패배: 체크포인트 부활 (적은 그대로 = 체력 회복).
+        /// 전투에서 마신 물약(potionsUsed)은 인벤토리에서 뺀다 (v0.3).</summary>
+        public JObject EndEncounter(EntityState enemy, string encounterId, bool cleared, int deaths, string potionItem, int potionsUsed)
         {
             var aftermath = new JObject();
+            CombatDeaths += Math.Max(0, deaths);
+            if (potionItem != null && potionsUsed > 0) RemoveItem(potionItem, Math.Min(potionsUsed, CountOf(potionItem)));
             var loot = new JArray();
             if (cleared)
             {
@@ -238,6 +277,7 @@ namespace Qa.Play.World
                 }
             }
             aftermath["loot"] = loot;
+            aftermath["potions_used"] = potionItem != null ? Math.Max(0, potionsUsed) : 0;
             HpRatio = 1.0;   // 시작 상태 full (v0.1) — 필드 상태를 전투로 가져가지도, 전투 결과를 필드로 가져오지도 않는다
             PlayerState = "idle";
             Emit("combat_ended", new JObject { ["encounter_id"] = encounterId, ["enemy"] = enemy.Id, ["cleared"] = cleared });
@@ -513,6 +553,13 @@ namespace Qa.Play.World
             return true;
         }
 
+        void ShowNotice(string text, string quest)
+        {
+            Notice = text;
+            NoticeCount++;
+            Emit("notice", new JObject { ["text"] = text, ["quest"] = quest });
+        }
+
         void SetFlag(string f)
         {
             if (_flags.Add(f)) Emit("flag_set", new JObject { ["flag"] = f });
@@ -618,6 +665,11 @@ namespace Qa.Play.World
                                     ["progress"] = new JArray(cur[i], Target(q, i)),
                                 });
                         q.LastProgress = cur;
+                        if (!q.NoticeShown && q.Def.ReadyNotice != null && QuestStateOf(q) == QuestStates.Ready)
+                        {
+                            q.NoticeShown = true;
+                            ShowNotice(q.Def.ReadyNotice, q.Def.Id);
+                        }
                         if (q.Def.AutoComplete && AllDone(q, false))
                         {
                             _updating = false;
