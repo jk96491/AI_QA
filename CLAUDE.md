@@ -57,6 +57,8 @@ python -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run>   # LLM 
 python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game ...]       # E0~E7
 ```
 
+**학습 결과 화면으로 보기**: `venv\Scripts\python.exe run/run_watch.py` (PyCharm `00c`) — 학습 없이 reports/ 최근 CMA-ES·IMPALA 결과와 손 튜닝을 같은 seed 로 Unity 창 3개에 나란히 재생.
+**플레이 모드 화면으로 보기**: `venv\Scripts\python.exe run/run_watch_play.py` (PyCharm `00d`) — 마을에서 시작해 튜토리얼 5개를 고정 행동열로 진행, 전투는 최근 학습 결과(forest_wolf_king) 로드아웃의 BT. LLM 없이.
 **새 Unity 빌드 측정**: `venv\Scripts\python.exe run/run_measure_build.py` (적합성 + 손튜닝 기준선 + CMA-ES + IMPALA 표) → `docs/STATUS.md` 3장 표에 한 줄 추가.
 **전체 사이클 점검**: `venv\Scripts\python.exe run/run_full_cycle.py` (적합성→describe→기준선→CMA-ES→params 재사용→IMPALA→리포트). 현재 최우선 목표는 성능이 아니라 이 사이클이 끊김 없이 도는 것 (사용자 우선순위).
 PyCharm 실행: `run/*.py` (맨 위 설정 블록 → `balance_qa.cli.main(argv)` / `runpy` 호출) + `.idea/runConfigurations/*.xml` (QA 폴더, 01~10).

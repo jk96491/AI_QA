@@ -10,6 +10,8 @@
 |---|---|---|
 | **00 전체 사이클 점검** | `run_full_cycle.py` | 적합성 → describe → 기준선 → CMA-ES → params 저장·재사용 → IMPALA → 리포트 (작은 예산, 끊김 없이 도는지만) |
 | **00b 전체 사이클 (Unity 화면)** | `run_full_cycle_view.py` | Unity 빌드 4개(1개 창) 로 같은 점검 + 마지막에 같은 seed 로 손 튜닝 → CMA-ES → IMPALA 판을 창에 재생 |
+| **00c 학습 결과 보기 (Unity 화면)** | `run_watch.py` | **학습 없이** reports/ 의 최근 결과(CMA-ES params.json, IMPALA policy.json)를 불러와 같은 seed 판을 Unity 창 3개(손 튜닝·CMA-ES·IMPALA)에 나란히 재생. Enter = 다음 seed, `VIEW_SPEED`·`CLASS`·`SCENARIO` 설정 |
+| **00d 플레이 모드 보기 (마을부터, Unity 화면)** | `run_watch_play.py` | Unity 플레이 모드 창: **마을에서 시작해 튜토리얼 퀘스트 5개**(촌장 대화 → 약초 → 보고 → 퀵슬롯 → 상점 → 늑대왕 → 경비 보고)를 고정 행동열로 진행. 전투는 reports/ 의 최근 학습 결과(forest_wolf_king, IMPALA 우선)를 로드아웃으로 넣어 학습 BT 가 싸움. LLM 불필요 |
 | 01 테스트 전체 | `run_tests.py` | 전체 단위·통합 테스트 |
 | **12 빌드 측정** | `run_measure_build.py` | 새 Unity 빌드: 적합성 + 손튜닝 기준선(직업×페르소나) + CMA-ES + IMPALA 결과 표 |
 | 02 게임 적합성 검사 | `run_check_game.py` | 프로토콜 검사 (`GAME` = Unity 빌드 주소) |

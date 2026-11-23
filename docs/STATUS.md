@@ -87,7 +87,7 @@ Unity 에이전트에게 지시할 때는 사용자가 직접 전달한다 (학�
 1. `AI_QA` 폴더에서 Claude Code 시작 (기억 파일이 이 폴더 기준).
    - **다음 작업 = 포트폴리오 문서** (사용자 결정 2026-11-22): `docs/PORTFOLIO_PLAN.md` 부터 읽는다.
 2. 새 빌드 측정 요청이 오면: `venv\Scripts\python.exe run/run_measure_build.py` → 결과를 3장 표에 한 줄 추가.
-3. 사이클 확인: `venv\Scripts\python.exe run/run_full_cycle.py` (맨 위 `GAME_CMD = UNITY`), 화면은 `run/run_full_cycle_view.py`.
+3. 사이클 확인: `venv\Scripts\python.exe run/run_full_cycle.py` (맨 위 `GAME_CMD = UNITY`), 화면은 `run/run_full_cycle_view.py` (학습하면서) / **`run/run_watch.py` (저장된 결과만 재생, PyCharm `00c`)**, 플레이 모드(마을부터)는 **`run/run_watch_play.py` (PyCharm `00d`)** — 0.7.0 forest_wolf_king 학습 결과: CMA `reports/20261123-203248` (클리어 60→100%), IMPALA `reports/20261123-203257` (99%, 341s).
 4. 플레이 모드 확인: `venv\Scripts\python.exe -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]` (PyCharm `13 플레이 모드 검사`).
 5. **LLM 플레이 실행 (다음에 이어서 할 일, 2026-11-23 세션 끝)** — 사용자가 1~3 준비 후 알려 주면 4 를 실행하고 결과 정리:
    1. Python 3.12 설치: `winget install Python.Python.3.12` (또는 Anaconda `conda create -n play_agent python=3.12`)
