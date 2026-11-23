@@ -1,6 +1,7 @@
-# 플레이 모드 프로토콜 v0.2 — LLM 비전투 플레이 + 학습된 BT 전투
+# 플레이 모드 프로토콜 v0.3 — LLM 비전투 플레이 + 학습된 BT 전투
 
-> 상태: **v0.2** (2026-11-23). v0.1 초안을 Unity QaArena **0.6.2** 구현(`unity_game/PLAY_MODE_REPORT.md` 2장)에 맞춰 확정했다.
+> 상태: **v0.3** (2026-11-23) = v0.2 + 플레이어 생각 메모 `pilot_note`(4.10). 요청 `unity_game/PLAY_PROTOCOL_0.3_REQUEST.md`.
+> v0.2 (2026-11-23): v0.1 초안을 Unity QaArena **0.6.2** 구현(`unity_game/PLAY_MODE_REPORT.md` 2장)에 맞춰 확정했다.
 > 0.6.2 가 아직 따르지 않는 항목은 **[0.6.2 미반영]** 으로 표시하고 `unity_game/PLAY_PROTOCOL_0.2_FOLLOWUP.md` 로 요청했다.
 > 밸런스 QA 계약(`PROTOCOL.md` v1.2)과는 **별개의 계약**이다. Unity 작업 목록 `unity_game/PLAY_MODE_REQUEST.md`(반영됨).
 
@@ -102,10 +103,11 @@
   "combat": {
     "trigger_state_features": ["hp_ratio","boss_hp_ratio","potions_ratio","resource_ratio","burst_ready","time_ratio","deaths_ratio"],
     "trigger_totals": ["elapsed","deaths","consumables_used","boss_hp_remaining"],
-    "encounter_start_state": "full",
+    "encounter_start_state": "barrier_inventory_potions",
     "encounters": [{"enemy":"wolf_king","zone":"forest","scenario":"forest_wolf_king","boss":"forest_wolf_king"}]
   },
   "quests": [{"id":"q_tut_01","title":"촌장을 찾아가자"}],
+  "pilot_notes": {"max_chars": 200, "kinds": ["thought","plan","finding"]},
   "stage": "P3"
 }
 ```
@@ -115,11 +117,12 @@
 | `scenarios` | 밸런스 모드 `describe.scenarios` 와 **같은 이름** + 그 시나리오의 보스. 필드 조우는 시나리오 하나에 대응하고 **로드아웃 키 = (class, scenario)** |
 | `actions` | 게임이 **실제로 지원하는 행동만**. 클라이언트는 이 목록으로 LLM 도구를 만든다. 목록에 없는 행동 → `error(unknown_action)` (0.6.2: `ui_input` 없음) |
 | `combat.trigger_*` | 전투 트리거의 키. 밸런스 프로토콜 `describe` 의 `state_features`·totals 와 **같은 이름·순서**여야 학습한 정책을 그대로 쓴다 |
-| `combat.encounter_start_state` | `"full"`: 조우 시작 시 체력·자원·포션 = 학습 판 시작과 같음 (6장) |
+| `combat.encounter_start_state` | (v0.3) `"barrier_inventory_potions"`: 체력·자원 = full(보스 결계), **물약 수 = 인벤토리** (4.7). v0.2 이하 `"full"`: 물약까지 학습 판 시작과 같음 |
 | `combat.encounters` | 필드에서 만날 수 있는 적 엔티티 → 시나리오. 클라이언트가 **필요한 로드아웃 목록**을 미리 안다 |
 | `quests` | 게임의 퀘스트 id·제목 (진척은 관찰 `quests`) |
 | `debug.omniscient` | `-qaPlayOmniscient` 로 켰을 때만 true |
 | `stage` | 구현 단계 표시(정보용). 클라이언트는 해석하지 않는다 |
+| `pilot_notes` | (v0.3) 게임이 `pilot_note`(4.10)를 화면에 표시할 수 있을 때만 넣는다. 없으면 클라이언트는 보내지 않는다 |
 
 ### 4.3 `set_loadout` → `loadout_ok`
 
@@ -242,13 +245,14 @@
 {"type":"combat_started","seq":14,"encounter_id":"enc_1","enemy":"wolf_king","boss":"forest_wolf_king","class":"warrior",
  "scenario":"forest_wolf_king","seed":874512,
  "loadout":{"matched":true,"source":"reports/20261123-001010 (cma)","persona":"stable"},
- "triggers":{"boss_hp_below":[0.75,0.5,0.25]},"start_state":"full",
- "field_state":{"hp_ratio":0.62,"resource_ratio":0.3,"potions":1,"deaths_so_far":0}}
+ "triggers":{"boss_hp_below":[0.75,0.5,0.25]},"start_state":"barrier_inventory_potions",
+ "field_state":{"hp_ratio":0.62,"resource_ratio":0.3,"potions":1,"deaths_so_far":0},
+ "potions":{"item":"potion_small","available":4,"carried":3,"cap":3}}
 {"type":"trigger","seq":14,"encounter_id":"enc_1","index":0,"state":{...},"totals":{...}}
 {"type":"trigger_response","encounter_id":"enc_1","index":0,"params":{"w_survival":0.42}}
 {"type":"combat_ended","seq":14,"encounter_id":"enc_1",
  "result":{ ...PROTOCOL.md 4.5 episode_result.result 와 같은 필드... },
- "aftermath":{"xp":40,"loot":[{"id":"wolf_fang","count":1}],"respawned_at":null}}
+ "aftermath":{"xp":40,"loot":[{"id":"wolf_fang","count":1}],"respawned_at":null,"potions_used":2}}
 ```
 
 | 필드 | 규칙 |
@@ -259,16 +263,19 @@
 | `seed` | **조우 seed** = SplitMix64 혼합: `z = reset.seed + 0x9E3779B97F4A7C15·k (mod 2^64)`, `z = (z ^ z>>30)·0xBF58476D1CE4E5B9`, `z = (z ^ z>>27)·0x94D049BB133111EB`, `z ^= z>>31`, **`seed = z & 0x7FFFFFFF`** (구현 `WorldState.EncounterSeed`). 패배 후 다시 싸우면 k 가 늘어 새 seed |
 | `loadout` | `matched`(로드아웃 항목 사용 여부), `source`·`persona`(로드아웃 그대로) |
 | `triggers` | 이 전투에서 쓰는 트리거 경계, 없으면 `null` |
-| `start_state` | `"full"` (6장) |
+| `start_state` | `encounter_start_state` 와 같은 값 |
+| `potions` | (v0.3) 전투에 가져간 물약. `item` = 퀵슬롯에 등록된 첫 물약 아이템(없으면 `null`), `available` = 그 아이템 인벤토리 수, `cap` = 직업 전투 물약 수(`classes[].stats.potions`, 전사 3), **`carried = min(available, cap)`** = 전투 시작 물약 수 |
 | `field_state` | **[0.6.2 미반영]** 보스 결계 회복 **직전** 필드 상태. 전투에는 쓰지 않고 기록만 (v0.3 시작 상태 분포용) |
-| `aftermath` | `xp`, `loot:[{id,count}]`, `respawned_at`(패배 시 부활 위치 id, 승리 시 `null`) |
+| `aftermath` | `xp`, `loot:[{id,count}]`, `respawned_at`(패배 시 부활 위치 id, 승리 시 `null`), (v0.3) `potions_used` = 전투에서 마신 수 → 인벤토리에서 그만큼 빠진다 (`item_removed` 사건) |
 
-- **보스 결계 회복 (게임 규칙)**: 조우는 보스 결계 안에서 일어나고, 체력·자원·포션이 학습 판 시작 상태로 맞춰진다 (`start_state:"full"`).
+- **보스 결계 회복 (게임 규칙)**: 조우는 보스 결계 안에서 일어나고, 체력·자원이 학습 판 시작 상태로 맞춰진다.
+  - **물약은 인벤토리 것을 쓴다 (v0.3, 사용자 결정 2026-11-23)**: 퀵슬롯에 등록한 물약만 전투에 가져가고(`carried`), 마신 만큼 인벤토리에서 빠진다. 퀵슬롯에 물약이 없으면 물약 0개로 싸운다. 한 번 마실 때 회복량은 **전투 규칙**(직업 `potion_heal_ratio`, 전사 0.4)이고 물약 쿨다운도 전투 규칙 그대로 — 아이템의 필드 회복량(`heal_ratio`)은 필드 `use_item` 에만 쓴다.
+  - 트리거 `state.potions_ratio` = 남은 물약 / `cap` (밸런스와 같은 정규화). 학습 판은 항상 `cap` 개로 시작했으므로 `carried < cap` 이면 **학습 분포 밖**이다 (6장).
   - [0.6.2 미반영] 회복 연출·`barrier_restore` 사건·`field_state` 기록. 0.6.2 는 필드에서 체력이 줄 일이 없어(필드 적·함정 피해 없음) 실질 차이는 아직 없다.
 - `trigger`·`trigger_response` 의 `state`/`totals`/`params` 규칙은 `PROTOCOL.md` 4.4 와 같다 (`episode_id` 대신 `encounter_id`). 응답 `params` 는 부분 덮어쓰기, `null` = 바꾸지 않음. 전투 시간은 응답까지 정지.
 - **잘못된 `trigger_response`** (형식·이름·범위 오류, 다른 index): 0.6.2 는 `error` 를 보내고 **같은 trigger 를 계속 기다린다** (밸런스 4.4 는 판 중단). → **결정 대기** (STATUS 2장). 클라이언트 규칙: 전투 중 받은 `error` 는 클라이언트 버그로 보고 세션을 끝낸다(`play_agent` 구현).
 - 전투 중 `trigger_response` 외의 요청 → `error(busy)`, 전투는 계속. 전투 밖 `trigger_response` → `error(bad_request)`.
-- **결정성 = 학습과 실전의 동일성**: 같은 `(class, scenario, seed, loadout params, triggers, 트리거 응답)` → 밸런스 서버 `run_episode` 와 **같은 `result`** (0.6.2 T5 확인).
+- **결정성 = 학습과 실전의 동일성**: 같은 `(class, scenario, seed, loadout params, triggers, 트리거 응답)` + **`carried == cap`** → 밸런스 서버 `run_episode` 와 **같은 `result`** (0.6.2 T5 확인). `carried < cap` 이면 물약 수가 달라 결과도 다를 수 있다 (T5 는 물약을 cap 이상 등록한 상태에서 비교).
 - 패배 = `cleared:false` 전부 (사망 초과·시간 초과·멈춤). 적의 checkpoint 에서 부활하고 적은 남는다. 승리 = 적 제거·전리품·경험치·처치 목표.
 - 전투 후 필드 체력은 가득이다 (`CombatSim` 상태를 필드로 가져오지 않음).
 
@@ -280,6 +287,20 @@
 ```
 - 세션의 모든 요청·결과·사건. `kind`: `reset`, `act`, `action_result`, `set_loadout`, `combat_start`, `trigger`, `combat_result` + 세계 사건(`dialog_*`, `quest_*`, `item_*`, `gold_changed`, `purchase*`, `zone_entered`, `picked_up`, `respawned` …).
 - 게임 쪽 시각 기준 로그가 정본. 같은 `reset.seed` + 같은 행동열 → **같은 로그** (창 ↔ 헤드리스 포함).
+
+### 4.10 `pilot_note` → `pilot_note_ok` (v0.3)
+
+플레이어(LLM — API 루프든 Claude Code 세션이든)가 **무엇을 생각하고 왜 그 행동을 하는지**를 게임 화면에 띄운다. 사람이 창을 보며 QA 플레이를 따라가고, 녹화·GIF 에도 남기기 위한 것.
+
+```json
+{"type":"pilot_note","seq":15,"kind":"plan","text":"경비병이 안 보인다. 마을 남동쪽을 더 찾아보자"}
+{"type":"pilot_note_ok","seq":15}
+```
+- `kind`: `thought`(판단) / `plan`(다음에 할 일) / `finding`(버그·개선점 발견). 다른 값 → `error(bad_request)`. `text` 는 한 줄, `max_chars` 이하 (넘으면 클라이언트가 자른다. 게임은 넘친 것을 잘라 표시해도 된다).
+- **게임 상태를 바꾸지 않는다**: 세계 시간 0초, 관찰·퀘스트·난수 무관. 행동 사이 언제든 보낼 수 있다 (`reset` 전 → `not_reset`, 전투 중 → `busy`).
+- 표시된 메모는 관찰 `screen.ui` 에 **넣지 않는다** (플레이어가 자기 메모를 다시 읽게 되지 않게, 관찰 결정성 유지).
+- `play_log` 에 `[t,"pilot_note",{"kind","text"}]` 로 남는다. 재현 비교(같은 seed + 같은 행동열 → 같은 로그)에서는 `pilot_note` 항목을 뺀다.
+- 헤드리스(`-batchmode`)에서는 그리지 않고 로그만 남긴다.
 
 ### 4.9 `error`, `bye`
 
@@ -296,28 +317,34 @@
 | `unknown_class`, `unknown_scenario`, `unknown_param`, `param_out_of_range` | 밸런스와 같음 |
 | `boss_mismatch` | 로드아웃 항목 `boss` ≠ 시나리오 보스 ([0.6.2 미반영] `unknown_boss`) |
 
+`pilot_note` 의 잘못된 `kind`·빈 `text` → `bad_request` (v0.3).
+
 ## 5. 클라이언트(학습 플랫폼 쪽) — `play_agent/`
 
-LLM 연결 방식 (사용자 결정 2026-11-22): **본체 = 직접 작성한 Claude API tool use 루프**, MCP 래퍼는 디버깅용 (선택, 아직 없음).
+LLM 연결 방식 (사용자 결정 2026-11-22, 2026-11-23 갱신): **본체 = 직접 작성한 tool use 루프 `LlmPilot`, LLM 은 사용자가 각자 고른다** (`docs/LLM_SETUP.md`: `play_agent/llm/` 의 `LlmBackend` — Claude API / OpenAI 호환 로컬·클라우드). API 없이 대화형 에이전트가 직접 플레이하는 `relay` 도 있다. MCP 래퍼는 디버깅용 (선택, 아직 없음).
 이유: QA 는 같은 튜토리얼을 자동으로 여러 번 돌려 실패 지점을 통계로 보는 것 — 배치 실행, 전투 대기·막힘 감지·행동/비용 상한, `reports/` 로그를 코드로 제어해야 한다.
 
 - `play_agent/` 는 `game_sim`·`balance_qa`·`torch` 를 import 하지 않는다 (`tests/test_independence.py`). 학습 쪽 산출물 `params.json`·`policy.json` **파일만** 읽는다.
-- 인터프리터: `PlayClient`·`LoadoutBuilder`·`CombatResponder`·`check-play` 는 **표준 라이브러리 + numpy** 라 프로젝트 venv(3.8)에서도 돈다. `LlmPilot` 만 `anthropic` SDK(1.x, Python ≥ 3.10) 가 필요하다 → 별도 venv.
+- 인터프리터: `PlayClient`·`LoadoutBuilder`·`CombatResponder`·`check-play` 는 **표준 라이브러리 + numpy** 라 프로젝트 venv(3.8)에서도 돈다. `anthropic` 백엔드만 anthropic SDK(Python ≥ 3.10) 가 필요하다 → 별도 venv. `openai` 백엔드(로컬 LLM 포함)는 표준 라이브러리만.
 
 | 모듈 | 역할 |
 |---|---|
 | `client.py: PlayClient` | 이 프로토콜 클라이언트. `act()` 는 `action_result` 까지 읽으며 전투 메시지를 모으고 `trigger` 는 응답기로 즉답 |
 | `loadout.py: LoadoutBuilder` | `reports/*/params.json`(CMA) / `policy.json`(IMPALA) → `set_loadout` 항목. 키 = (class, scenario). 게임 버전이 다르면 경고 |
 | `responder.py: CombatResponder` | `trigger` 에 즉답 (LLM 거치지 않음). IMPALA `policy.json` 의 `policy_theta` 를 **numpy 순전파**(Beta 평균, `mode: mean`). 학습 쪽 torch 순전파와 같은 출력인지 테스트로 고정 |
-| `pilot.py: LlmPilot` | Claude API 수동 tool use 루프 (`claude-opus-5-5`, `output_config.effort`, 시스템 프롬프트·도구 고정 → 프롬프트 캐싱, `tool_choice: auto` + `strict: true`). 전투는 도구 실행 안에서 끝나고 `combat_ended` 요약이 도구 결과에 들어간다. 행동 수·진척 없음·토큰 상한 |
+| `llm/: LlmBackend` | LLM 확장 지점. `AnthropicBackend`(Claude API: `claude-opus-5-5`, `output_config.effort`, 프롬프트 캐싱, `tool_choice: auto` + `strict: true`) / `OpenAICompatBackend`(`/v1/chat/completions` function calling, urllib). 설정 `llm.json` + CLI |
+| `pilot.py: LlmPilot` | 백엔드와 무관한 수동 tool use 루프 (시스템 프롬프트·도구 고정, LLM 텍스트 → `pilot_note`). 전투는 도구 실행 안에서 끝나고 `combat_ended` 요약이 도구 결과에 들어간다. 행동 수·진척 없음·토큰 상한 |
+| `relay.py: PilotRelay` | 대화형 에이전트(Claude Code 세션)가 직접 플레이어 — API 호출 없음 (사용자 결정 2026-11-23: API 별도 과금 회피). `relay` 가 연결 유지, `step <tool> '<json>' --think "..."` 로 한 행동씩, `--think` 는 행동 전에 `pilot_note` |
 | `check.py` | `check-play`: 이 프로토콜 적합성 + 스크립트 튜토리얼 완주 (`unity_game/QaTools~/play_check.py` T2~T8 이식) |
 
 - LLM 은 결정적이지 않다 → 재현은 `play_log` 의 행동열을 그대로 재생해서 한다 (`reset.seed` 동일 + 같은 행동열 → 같은 결과).
 
 ## 6. 알려진 제약
 
-- **조우 시작 상태 = full (게임 규칙: 보스 결계 회복)** — 사용자 결정 2026-11-22. 학습 판은 항상 가득 찬 상태로 시작했으므로 필드 상태를 이어받으면 학습 분포 밖이고 T5 도 깨진다.
-  - 다음 계획(v0.3): `field_state` 로그가 쌓이면 그 분포로 학습 판 시작 상태를 바꿔 다시 학습 → 이어받기 허용. 밸런스 프로토콜에 `run_episode.initial_state` 추가 필요 (1.3, 부 버전 호환). 필드 피해원(일반 적·함정)이 생겨야 의미가 있다.
+- **조우 시작 상태 = 체력·자원 full + 물약은 인벤토리** — 사용자 결정 2026-11-22(결계 full), 2026-11-23(물약은 인벤토리에서, 이 결정이 앞의 것의 물약 부분을 바꾼다).
+  - 물약이 `cap` 보다 적게 시작하는 전투는 학습 분포 밖이다. 대응(다음 단계): 밸런스 프로토콜에 `run_episode.initial_state.potions`(SDK 원본 레포, 부 버전 호환)를 추가하고 학습 판 시작 물약을 0~cap 으로 섞어 다시 학습.
+  - 그 전 기록: 학습 판은 항상 가득 찬 상태로 시작했으므로 필드 상태를 이어받으면 학습 분포 밖이고 T5 도 깨진다.
+  - 다음 계획(이후 버전): `field_state` 로그가 쌓이면 그 분포로 학습 판 시작 상태를 바꿔 다시 학습 → 이어받기 허용. 밸런스 프로토콜에 `run_episode.initial_state` 추가 필요 (1.3, 부 버전 호환). 필드 피해원(일반 적·함정)이 생겨야 의미가 있다.
 - **학습하지 않은 보스**는 손 튜닝 default 로 싸운다 (`loadout.matched=false`).
 - 계층 정보 기반이라 **시각 UX 결함**(글자 잘림, 겹침, 색 대비)은 잡지 못한다. 0.6.2 시야 판정에 **가림(occlusion) 없음**.
 - IMGUI(OnGUI) 로 그린 UI 는 관찰할 수 없다 → 플레이 모드 UI 는 uGUI(TextMeshPro).
@@ -331,4 +358,5 @@ LLM 연결 방식 (사용자 결정 2026-11-22): **본체 = 직접 작성한 Cla
 | 버전 | 날짜 | 내용 |
 |---|---|---|
 | 0.1 | 2026-11-22 | 초안 |
+| 0.3 | 2026-11-23 | **전투 물약 = 인벤토리**(퀵슬롯 등록분, `min(보유, cap)`, 사용분 차감; `combat_started.potions`, `aftermath.potions_used`, `encounter_start_state:"barrier_inventory_potions"`). `pilot_note`(4.10) + `play_description.pilot_notes`. 클라이언트는 0.3 → 0.2 → 0.1 순으로 hello, 0.3 미만이면 메모를 보내지 않고 `run.json.pilot_notes` 에만 남긴다 |
 | 0.2 | 2026-11-23 | 0.6.2 구현 반영: hello 주.부 일치, reset 인자 제한, `scenarios{name,boss}`, `actions` 실제 목록(`ui_input` 제거), `combat.encounters`, 관찰 `quickslots`·퀘스트 `active/ready`·`marker`·`modal:"tip"`, `reason_detail` 형식, `engage`=done / `move_to`=interrupted(combat), 조우 seed 식, `combat_started`·`aftermath` 필드, `set_loadout` 전체 교체, 오류 표 |

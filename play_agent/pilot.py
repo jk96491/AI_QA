@@ -1,12 +1,13 @@
-"""LlmPilot — 비전투를 Claude 가 플레이하는 수동 tool use 루프 (PLAY_PROTOCOL 5장).
+"""LlmPilot — 비전투를 LLM 이 플레이하는 수동 tool use 루프 (PLAY_PROTOCOL 5장). LLM 은 사용자가 고른다.
 
-- 모델 claude-opus-5-5 (thinking 상시, 깊이는 output_config.effort), tool_choice auto + strict 도구
-- 시스템 프롬프트·도구 목록은 세션 내내 고정 → 시스템 블록 캐시 지점 + 상위 cache_control(대화 꼬리 자동 캐시)
+- LLM 은 `play_agent.llm.LlmBackend` (Claude API / OpenAI 호환 로컬·클라우드). 안내 docs/LLM_SETUP.md
+- 시스템 프롬프트·도구 목록은 세션 내내 고정 (Claude 는 프롬프트 캐시)
 - 전투는 도구 실행(PlayClient.act) 안에서 학습된 BT·응답기가 끝내고, 요약만 도구 결과에 실린다
+- LLM 이 말한 텍스트는 pilot_note(thought) 로 게임 화면에 표시 (play v0.3, 아니면 기록만)
 - 상한: 행동 수, API 호출 수, 진척 없음(N 행동 동안 퀘스트·지역·인벤토리·골드 변화 없음)
 - 결과: PilotRun (끝난 이유, finish 요약, 전투, 토큰 사용량, 대화 기록) — 재현은 게임 get_log 의 행동열로
 
-anthropic SDK(1.x, Python ≥ 3.10)는 run() 에서만 import 한다 → 나머지 play_agent 는 프로젝트 venv(3.8)에서도 돈다.
+anthropic SDK 는 AnthropicBackend 안에서만 import → openai 백엔드·나머지 play_agent 는 프로젝트 venv(3.8)에서도 돈다.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
 from play_agent.client import PlayClient
+from play_agent.llm.base import STOP_MAX_TOKENS, STOP_PAUSE, STOP_REFUSAL, LlmBackend, ToolResult
 from play_agent.tools import GameTools, build_tools, compact_observation, to_text
 
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -32,20 +34,21 @@ SYSTEM_PROMPT = """너는 게임 QA 플레이어다. Unity 게임의 비전투 �
 규칙:
 - 세계는 네가 행동할 때만 흐른다. 서두를 필요 없다.
 - 행동은 반드시 도구로 한다. 한 번에 도구 하나씩 부르고 결과를 보고 다음을 정한다.
+- 도구를 부르기 전에 왜 그 행동을 하는지 한 문장으로 말한다 (게임 화면에 플레이어 생각으로 표시된다).
 - 상호작용은 먼저 move_to 로 다가간 뒤 interact. 보이지 않는 대상은 근처 좌표나 지역 입구로 먼저 간다.
 - 창(modal)이 열려 있으면 그 창의 버튼으로 진행하거나 닫는다. interactable:false 버튼은 가려졌거나 비활성이다 — 가린 창부터 처리한다.
-- 전투는 네가 하지 않는다. 적에게 다가가거나 engage 하면 학습된 전투 AI 가 싸우고 결과가 combats 로 온다. 지면 체크포인트에서 부활하니 다시 시도할 수 있다.
+- 전투는 네가 하지 않는다. 적에게 다가가거나 engage 하면 학습된 전투 AI 가 싸우고 결과가 combats 로 온다. 전투 물약은 퀵슬롯에 등록한 인벤토리 물약이다. 지면 체크포인트에서 부활하니 다시 시도할 수 있다.
 - 목표를 다 이뤘거나, 같은 시도를 반복해도 진척이 없으면 finish 를 부른다. 게임 버그로 보이는 것은 blocked 에 구체적으로 적는다 (UI id·메시지 포함).
-- 말은 짧게. 생각은 하되 출력 텍스트는 최소로."""
+- 말은 짧게."""
 
 
 @dataclass
 class PilotConfig:
-    model: str = DEFAULT_MODEL
-    effort: str = "low"               # low | medium | high … (Opus 5.5 기본 medium)
-    max_tokens: int = 8000            # 응답 1회 (thinking 포함)
+    model: str = DEFAULT_MODEL        # api_client 를 직접 줄 때(AnthropicBackend) 만 쓴다
+    effort: str = "low"
+    max_tokens: int = 8000
     max_actions: int = 150            # 게임 행동 수 상한
-    max_calls: int = 250              # API 호출 상한
+    max_calls: int = 250              # LLM 호출 상한
     no_progress_actions: int = 25     # 이만큼 행동하는 동안 진척 없으면 중단
     goal: str = "튜토리얼 퀘스트를 모두 끝까지 완료하라 (진행 중인 퀘스트가 없어질 때까지)."
 
@@ -53,6 +56,7 @@ class PilotConfig:
 @dataclass
 class PilotRun:
     end_reason: str = ""
+    llm: str = ""
     finish: Optional[Dict[str, Any]] = None
     actions: int = 0
     api_calls: int = 0
@@ -63,7 +67,7 @@ class PilotRun:
     transcript: List[Dict[str, Any]] = field(default_factory=list)   # (assistant 텍스트·도구 호출·결과 요약)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {k: getattr(self, k) for k in ("end_reason", "finish", "actions", "api_calls", "combats", "usage",
+        return {k: getattr(self, k) for k in ("end_reason", "llm", "finish", "actions", "api_calls", "combats", "usage",
                                               "seconds", "last_observation", "transcript")}
 
 
@@ -78,32 +82,27 @@ def progress_signature(obs: Mapping[str, Any]) -> str:
 
 class LlmPilot:
     def __init__(self, client: PlayClient, responder: Any = None, config: Optional[PilotConfig] = None,
-                 api_client: Any = None) -> None:
+                 api_client: Any = None, backend: Optional[LlmBackend] = None) -> None:
         self.client = client
         self.cfg = config or PilotConfig()
         self.tools = GameTools(client, responder)
-        self._api = api_client   # 테스트에서 가짜 주입 가능 (messages.create 만 쓴다)
-
-    def _anthropic(self) -> Any:
-        if self._api is None:
-            import anthropic   # Python ≥ 3.10 전용 venv (PLAY_PROTOCOL 5장)
-            self._api = anthropic.Anthropic()
-        return self._api
+        if backend is None:   # 하위 호환: 백엔드를 안 주면 Claude API (api_client = 가짜 주입 가능)
+            from play_agent.llm.anthropic_backend import AnthropicBackend
+            backend = AnthropicBackend(model=self.cfg.model, effort=self.cfg.effort, max_tokens=self.cfg.max_tokens,
+                                       api_client=api_client)
+        self.backend = backend
 
     def run(self, first_observation: Mapping[str, Any]) -> PilotRun:
-        cfg = self.cfg
-        api = self._anthropic()
+        cfg, llm = self.cfg, self.backend
         desc = self.client.description
-        tool_defs = build_tools(desc)
-        system = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
         intro = {
             "goal": cfg.goal,
             "game": "%s %s" % (desc.get("game"), desc.get("game_version")),
             "quests_in_game": desc.get("quests"),
             "observation": compact_observation(first_observation),
         }
-        messages: List[Dict[str, Any]] = [{"role": "user", "content": to_text(intro)}]
-        run = PilotRun(usage={"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0})
+        llm.start(SYSTEM_PROMPT, build_tools(desc), to_text(intro))
+        run = PilotRun(llm=llm.label)
         t0 = time.time()
         last_sig, stale = progress_signature(first_observation), 0
         run.last_observation = dict(first_observation)
@@ -112,45 +111,42 @@ class LlmPilot:
             if run.api_calls >= cfg.max_calls:
                 run.end_reason = "max_calls"
                 break
-            resp = api.messages.create(
-                model=cfg.model, max_tokens=cfg.max_tokens, system=system, tools=tool_defs, messages=messages,
-                output_config={"effort": cfg.effort}, cache_control={"type": "ephemeral"},
-            )
+            turn = llm.complete()
             run.api_calls += 1
-            for k in run.usage:
-                run.usage[k] += int(getattr(resp.usage, k, 0) or 0)
-            messages.append({"role": "assistant", "content": resp.content})
-            texts = [b.text for b in resp.content if getattr(b, "type", "") == "text" and b.text.strip()]
-            calls = [b for b in resp.content if getattr(b, "type", "") == "tool_use"]
-            if texts:
-                run.transcript.append({"assistant": "\n".join(texts)})
+            if turn.texts:
+                text = "\n".join(turn.texts)
+                run.transcript.append({"assistant": text})
+                self.client.note(text)   # v0.3 게임이면 화면에 표시, 아니면 클라이언트 기록만
 
-            if resp.stop_reason == "pause_turn":
+            if turn.stop == STOP_PAUSE:
                 continue
-            if resp.stop_reason in ("refusal", "max_tokens") and not calls:
-                run.end_reason = "stop_" + str(resp.stop_reason)
+            if turn.stop in (STOP_REFUSAL, STOP_MAX_TOKENS) and not turn.calls:
+                run.end_reason = "stop_" + turn.stop
                 break
-            if not calls:
-                # auto 는 호출을 보장하지 않는다 → 한 번 상기시키고 계속 (도구 강제는 Opus 5.5 에서 400)
-                messages.append({"role": "user", "content": "도구로 다음 행동을 하거나 finish 를 불러라."})
+            if not turn.calls:
+                # 도구 호출은 보장되지 않는다 → 한 번 상기시키고 계속
+                llm.add_user("도구로 다음 행동을 하거나 finish 를 불러라.")
                 run.transcript.append({"nudge": True})
                 continue
 
-            results = []
-            for call in calls:
-                try:
-                    out = self.tools.execute(call.name, call.input)
-                    is_err = "error" in out
-                except Exception as e:   # PlayError(전투 중 error·연결 끊김) → 세션 종료
-                    run.end_reason = "game_error: %s" % e
-                    out, is_err = {"error": str(e)}, True
+            results: List[ToolResult] = []
+            for call in turn.calls:
+                if call.error:   # 인자 파싱 실패 → 실행하지 않고 알려 준다
+                    out, is_err = {"error": call.error}, True
+                else:
+                    try:
+                        out = self.tools.execute(call.name, call.input)
+                        is_err = "error" in out
+                    except Exception as e:   # PlayError(전투 중 error·연결 끊김) → 세션 종료
+                        run.end_reason = "game_error: %s" % e
+                        out, is_err = {"error": str(e)}, True
                 run.transcript.append({"tool": call.name, "input": call.input,
                                        "status": out.get("status"), "reason": out.get("reason"),
                                        "error": out.get("error"), "combats": out.get("combats")})
-                results.append({"type": "tool_result", "tool_use_id": call.id, "content": to_text(out), "is_error": is_err})
+                results.append(ToolResult(call.id, to_text(out), is_err))
                 if run.end_reason:
                     break
-            messages.append({"role": "user", "content": results})
+            llm.add_tool_results(results)
 
             run.actions = self.tools.actions
             if self.tools.last_observation:
@@ -168,11 +164,12 @@ class LlmPilot:
             if sig != last_sig:
                 last_sig, stale = sig, 0
             else:
-                stale += sum(1 for c in calls if c.name not in ("finish", "inspect_ui"))
+                stale += sum(1 for c in turn.calls if c.name not in ("finish", "inspect_ui"))
                 if stale >= cfg.no_progress_actions:
                     run.end_reason = "no_progress"
                     break
 
+        run.usage = dict(llm.usage)
         run.combats = [c.summary() for c in self.tools.combats]
         run.seconds = round(time.time() - t0, 1)
         return run

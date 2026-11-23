@@ -10,8 +10,8 @@
 | 학습 플랫폼 `balance_qa` | 완료: 평가·CMA-ES·ES 정책·**IMPALA**(Beta Actor-Critic, V-trace, torch CPU)·민감도·리포트 |
 | IMPALA 액터 | 로컬 다중 프로세스(기본) / threads / external(클라우드 대비). 클라우드 보강 항목은 `DISTRIBUTED.md` 4장 |
 | 게임 대역 `game_sim` | 참조 구현 + 테스트용 (지우지 않음). 프로토콜 1.3, 버전 0.5.0 (`btqa_game` 위에서 동작) |
-| 실제 게임 `unity_game` (QaArena) | 다른 에이전트가 제작. **0.7.0** (SDK 도입은 학습 쪽 세션이 직접 반영 — `unity_game/SDK_MIGRATION.md`): 적합성 16/16, edge 37/37, 판 결과 0.6.2 와 21/21 동일, check-play 106/106 + **플레이 모드**(`-qaPlay`, P1~P4) |
-| 플레이 클라이언트 `play_agent` | 2026-11-23 구현: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot·`check-play`. 0.6.2 로 **check-play 106/106** (T9 = 학습 결과로 필드 늑대왕 처치 + 밸런스 결과 일치). **LlmPilot 실제 API 실행은 아직** (Python ≥3.10 없음) |
+| 실제 게임 `unity_game` (QaArena) | 다른 에이전트가 제작. **0.7.0** (SDK 도입은 학습 쪽 세션이 직접 반영 — `unity_game/SDK_MIGRATION.md`): 적합성 16/16, edge 37/37, 판 결과 0.6.2 와 21/21 동일, check-play 126/126 (0.7.1) + **플레이 모드**(`-qaPlay`, P1~P4) |
+| 플레이 클라이언트 `play_agent` | 2026-11-23 구현: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot·`check-play`. **check-play 126/126** (0.7.1, play v0.3: T-P 물약·T-N 메모 포함, T9 = 학습 결과로 필드 늑대왕 처치 + 밸런스 결과 일치). LLM 은 각자 고른다(`play_agent/llm/`, `docs/LLM_SETUP.md`); 실제 플레이는 `relay`(Claude Code 세션) 로 2회 — API·로컬 LLM 실제 실행은 아직 |
 | 화면 보기 | `--view N` / PyCharm `00b 전체 사이클 (Unity 화면)` — 창 4개, `-qaFollow -qaViewSpeed 8` 자동 |
 | 전체 사이클 | Unity **0.7.0** 으로 6단계 PASS (`reports/20261123-193621`, IMPALA 출력 = 가중치 3개) |
 | 저장소 | https://github.com/jk96491/AI_QA (main). 제안서 PDF·`reports/`·venv·Unity 빌드 산출물은 `.gitignore` 로 제외 |
@@ -89,7 +89,13 @@ Unity 에이전트에게 지시할 때는 사용자가 직접 전달한다 (학�
 2. 새 빌드 측정 요청이 오면: `venv\Scripts\python.exe run/run_measure_build.py` → 결과를 3장 표에 한 줄 추가.
 3. 사이클 확인: `venv\Scripts\python.exe run/run_full_cycle.py` (맨 위 `GAME_CMD = UNITY`), 화면은 `run/run_full_cycle_view.py` (학습하면서) / **`run/run_watch.py` (저장된 결과만 재생, PyCharm `00c`)**, 플레이 모드(마을부터)는 **`run/run_watch_play.py` (PyCharm `00d`)** — 0.7.0 forest_wolf_king 학습 결과: CMA `reports/20261123-203248` (클리어 60→100%), IMPALA `reports/20261123-203257` (99%, 341s).
 4. 플레이 모드 확인: `venv\Scripts\python.exe -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]` (PyCharm `13 플레이 모드 검사`).
-5. **LLM 플레이 실행 (다음에 이어서 할 일, 2026-11-23 세션 끝)** — 사용자가 1~3 준비 후 알려 주면 4 를 실행하고 결과 정리:
+5. **LLM 플레이 — 첫 실제 실행 완료 (2026-11-23, API 대신 Claude Code 세션이 플레이어)**: 사용자 결정 = API 추가 비용 없이 정액제 Claude Code 가 직접 플레이. `python -m play_agent relay --game 127.0.0.1:7800 --loadout reports/20261123-003306` (3.8 venv, 연결 유지) + 매 행동 `python -m play_agent step <tool> '<json>'`, `finish` 로 기록 저장. 결과 `reports/relay-20261123-215152`: 튜토리얼 5개 전부 완료, 행동 76, 늑대왕 학습 BT 클리어(308s, 사망 1). 발견 3건 (버그 아님·개선): ① npc_guard 위치 안내 없음 (일지·대화·hint_targets 모두 id 뿐, 마을 (34,-22) 은 탐색으로 못 찾아 world.json 을 보고 감) ② 상점 구매 버튼 interactable 규칙 불일치 (20G 일 때 25G 버튼 true·80G 버튼 false; 클릭하면 purchase_failed 로 안전) ③ 전투 중 사망 1회인데 퀵슬롯 물약 4개 그대로 — 계약 6장 결정(조우 시작 full, 물약은 학습 판 기준)대로지만 화면 설명이 없음 (②는 코드상 의도된 함정 `WorldState.cs:395`).
+   - **Unity 에 전달할 요청 `unity_game/PLAY_PROTOCOL_0.3_REQUEST.md`** (사용자 요청 2026-11-23): 플레이어 생각을 게임 화면에 표시하는 `pilot_note` (PLAY_PROTOCOL **v0.3** 4.10, 패널·말풍선·토스트) + G1 경비병 위치 안내 + G3 결계 안내 문구. 학습 쪽은 구현 완료: `PlayClient.note()`, `step --think "..." --kind thought|plan|finding`, LlmPilot 텍스트→thought, hello 0.3→0.2→0.1. 0.7.0 은 아직 play 0.1 만 받아 메모는 `run.json.pilot_notes` 에만 남는다.
+   - **사용자 결정 2026-11-23: 전투에서 인벤토리 물약을 쓴다** → 계약 v0.3 4.7·6장, 요청서 3장 C1~C5 (퀵슬롯 물약 `carried=min(보유, cap)`, 회복량은 전투 규칙, 사용분 차감). `PlayClient` 전투 요약에 `potions`·`potions_used`·`out_of_training_dist`.
+     후속(학습 쪽): carried<cap 전투는 학습 분포 밖 → 밸런스 프로토콜 `run_episode.initial_state.potions`(SDK 원본 레포) + 시작 물약을 섞은 재학습.
+   - **0.7.1 재플레이 (2026-11-23 22:18, relay + 생각 메모)** `reports/relay-20261123-221805/` (+`play_notes.png`): 5개 완료, 행동 43(첫 판 76), 메모 35개 전부 화면 표시, 경비병을 안내만으로 찾음, 전투 물약 4→carried 3→사용 3→잔여 1, 클리어 324s·사망 1. 후속 H1(메모 패널이 대화창 글자와 겹침)·H2(물약 30%↔40%) → 요청서 4장. `play_agent/check.py` v0.3 반영 완료 (T-P 물약·T-N 메모 이식, T5·T9 는 carried == cap 조우만 밸런스 비교, T9 도 물약 준비) → **check-play 126/126 PASS** (0.7.1, CMA 로드아웃).
+   - **LLM 은 각자 고른다 (사용자 요청 2026-11-23)**: 안내 `docs/LLM_SETUP.md`, 코드 `play_agent/llm/` (`LlmBackend` → `AnthropicBackend` / `OpenAICompatBackend`: 로컬 Ollama·LM Studio·llama.cpp·vLLM·호환 클라우드), 설정 `llm.json`(git 제외, 예시 `play_agent/llm.example.json`), `play --llm ...`, PyCharm `14` = `run/run_play.py`. 로컬·클라우드 백엔드는 가짜 전송 테스트만 — 실제 LLM 으로는 아직 안 돌림.
+   - 아래는 API(`play_agent play`) 로 돌릴 때의 준비 — Python 3.12 + `venv_play`(anthropic 2.12) 는 설치 완료, 키는 미설정 (API 는 정액제와 별도 과금이라 보류). 기존 기록 (2026-11-23 세션 끝) — 사용자가 1~3 준비 후 알려 주면 4 를 실행하고 결과 정리:
    1. Python 3.12 설치: `winget install Python.Python.3.12` (또는 Anaconda `conda create -n play_agent python=3.12`)
    2. `py -3.12 -m venv venv_play` → `venv_play\Scripts\python.exe -m pip install anthropic numpy` (`venv_play/` 는 .gitignore 에 있음)
    3. console.anthropic.com 에서 API 키 → `setx ANTHROPIC_API_KEY "sk-ant-..."` (새 터미널·PyCharm 재시작). 키는 채팅에 붙이지 않는다

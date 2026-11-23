@@ -77,6 +77,15 @@ python -m balance_qa --workers 8 --game-cmd "Build/Game.exe -batchmode -nographi
 
 게임 대역만 따로 띄울 수도 있습니다: `python -m game_sim serve --port 7777`
 
+## LLM 플레이 (각자 LLM)
+
+플레이 모드의 비전투는 LLM 이 한다. **LLM 은 쓰는 사람이 직접 고른다** — 안내 `docs/LLM_SETUP.md`.
+
+- 대화형 에이전트(Claude Code 등)가 직접: `python -m play_agent relay ...` + `step` (API 과금 없음)
+- 로컬 LLM(Ollama·LM Studio): `python -m play_agent play ... --llm openai --model qwen2.5:14b`
+- Claude API: `--llm anthropic` (Python ≥ 3.10 venv, 키는 환경변수 `ANTHROPIC_API_KEY`)
+- 설정은 `llm.json`(git 에 안 올라감, 예시 `play_agent/llm.example.json`), PyCharm `14 LLM 플레이 (각자 LLM)`
+
 ## 실험 (설계 문서 10장)
 
 | 스크립트 | 가설 | 내용 |

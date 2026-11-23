@@ -14,9 +14,11 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 PROTOCOL = "play"
-PROTOCOL_VERSION = "0.2"
-#: 0.6.2 는 "0.1" 만 받는다 (내용은 0.2 와 같고 미반영 항목만 다름). hello 거절 시 차례로 다시 시도.
-COMPATIBLE_VERSIONS = ("0.1",)
+PROTOCOL_VERSION = "0.3"
+#: hello 거절 시 차례로 다시 시도. 0.6.2~0.7.0 은 "0.1" 만 받는다 (내용은 0.2 와 같고 미반영 항목만 다름).
+#: 0.3 = 0.2 + pilot_note (4.10). 0.3 미만 게임에는 메모를 보내지 않고 클라이언트 쪽에만 남긴다.
+COMPATIBLE_VERSIONS = ("0.2", "0.1")
+NOTE_KINDS = ("thought", "plan", "finding")
 #: 로드아웃 boss 불일치 코드 (0.6.2 = unknown_boss, v0.2 = boss_mismatch)
 BOSS_MISMATCH_CODES = ("boss_mismatch", "unknown_boss")
 
@@ -77,7 +79,18 @@ class Combat:
             "loot": af.get("loot"),
             "xp": af.get("xp"),
             "respawned_at": af.get("respawned_at"),
+            # v0.3: 전투 물약 = 인벤토리 (퀵슬롯 등록분 min(보유, cap), 사용분 차감). v0.2 이하 게임은 None
+            "potions": self.started.get("potions"),
+            "potions_used": af.get("potions_used"),
+            "out_of_training_dist": _short_on_potions(self.started.get("potions")),
         }
+
+
+def _short_on_potions(p: Any) -> Optional[bool]:
+    """물약을 cap 보다 적게 가져간 전투 = 학습 판(항상 cap 개 시작) 분포 밖."""
+    if not isinstance(p, Mapping) or p.get("carried") is None or p.get("cap") is None:
+        return None
+    return int(p["carried"]) < int(p["cap"])
 
 
 @dataclass
@@ -119,6 +132,7 @@ class PlayClient:
         self.description: Dict[str, Any] = {}
         self.protocol_version: Optional[str] = None
         self.notes: List[str] = []                    # 호환 시도 등 기록
+        self.pilot_notes: List[Dict[str, Any]] = []   # 플레이어(LLM) 생각 메모 — 게임이 표시를 못 해도 여기는 남는다
 
     @classmethod
     def connect(cls, endpoint: str, **kw: Any) -> "PlayClient":
@@ -233,6 +247,28 @@ class PlayClient:
                 raise PlayError(str(m.get("code")), "전투 중 error: %s" % m.get("message", ""), m)
             else:
                 return ActResult(msg=m, combats=combats)
+
+    # ------------------------------------------------------------------ 플레이어 메모 (v0.3, 4.10)
+    @property
+    def supports_pilot_notes(self) -> bool:
+        return bool(self.description.get("pilot_notes")) and self.protocol_version not in (None, "0.1", "0.2")
+
+    def note(self, text: str, kind: str = "thought") -> bool:
+        """플레이어 생각을 게임 화면·로그에 남긴다. 게임 상태·시간은 바뀌지 않는다. 표시했으면 True."""
+        if kind not in NOTE_KINDS:
+            raise ValueError("kind 는 %s 중 하나" % (NOTE_KINDS,))
+        text = " ".join(str(text).split())
+        limit = int((self.description.get("pilot_notes") or {}).get("max_chars", 200))
+        if len(text) > limit:
+            text = text[: limit - 1] + "…"
+        rec: Dict[str, Any] = {"kind": kind, "text": text, "shown": False}
+        self.pilot_notes.append(rec)
+        if not text or not self.supports_pilot_notes:
+            return False
+        self.seq += 1
+        self.call({"type": "pilot_note", "seq": self.seq, "kind": kind, "text": text}, "pilot_note_ok")
+        rec["shown"] = True
+        return True
 
     def close(self) -> None:
         try:

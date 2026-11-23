@@ -13,7 +13,7 @@
 | `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터. 서버는 SDK `btqa_game` 으로 구현 (`GameSimHost`). 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
 | `balance_qa/` | **학습 플랫폼** (SDK 를 쓰는 쪽, 계약만 따름): 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim`, `btqa_game` import |
 | `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.3) | — |
-| `play_agent/` | **플레이 모드 클라이언트**: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot(Claude API)·check-play. 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch` import |
+| `play_agent/` | **플레이 모드 클라이언트**: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot(LLM 백엔드 `play_agent/llm/`, 각자 고른 LLM)·PilotRelay(대화형 에이전트가 직접)·check-play. 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch` import |
 | `unity_game/` | **실제 테스트 게임 (Unity 프로젝트, 다른 에이전트가 제작 중)**. 제작 규칙 `unity_game/AGENT_GUIDE.md` | 학습 쪽 코드에서 import·경로 의존 금지 (`--game` / `--game-cmd` 로만 연결) |
 
 - `game_sim/` 은 Unity 게임이 생긴 뒤에도 **참조 구현 + 테스트용 가짜 게임**으로 유지한다 (사용자 결정). 지우지 않는다.
@@ -32,7 +32,9 @@
   - torch 1.8 API: `torch.inference_mode` 없음 → `torch.no_grad()`. `torch.linalg.eigh/norm`, `torch.outer` 사용 가능.
 - **학습 부분은 PyTorch CPU**: `balance_qa/optim/*`, `balance_qa/policy/mlp.py`, `balance_qa/rl/*` (IMPALA). 장치·dtype 은 `balance_qa/backend.py` (DEVICE=cpu, 최적화기 float64, 정책 float32). `.cuda()` 금지.
 - 게임 쪽 BT·시뮬레이터는 numpy/순수 파이썬.
-- 예외: `play_agent/pilot.py` 의 LLM 실행만 anthropic SDK 1.x(Python ≥3.10) 별도 venv. 나머지 `play_agent` 는 3.8 + numpy 로 돈다 (anthropic 은 실행 시점에만 import).
+- 플레이 모드 LLM 은 **사용자가 각자 고른다** (`docs/LLM_SETUP.md`, 설정 `llm.json` — git 제외, 예시 `play_agent/llm.example.json`). 저장소에 키·특정 LLM 을 박지 않는다. 키는 환경변수 이름(`api_key_env`)만.
+  - `openai`(OpenAI 호환: 로컬 Ollama·LM Studio 등) 백엔드는 표준 라이브러리만 → 3.8 venv 그대로. `anthropic`(Claude API) 만 anthropic SDK(Python ≥3.10) 별도 venv(`venv_play`), SDK 는 `AnthropicBackend` 안에서만 import.
+  - 이 사용자는 API 추가 과금을 원하지 않는다 → 직접 플레이할 땐 `relay`/`step` (Claude Code 세션이 플레이어).
 - 정의서·데이터는 **JSON**.
 - Windows 콘솔 한글: 진입점에서 `sys.stdout.reconfigure(encoding="utf-8")` (cli, game_sim `__main__`, experiments/common 에 있음).
 
@@ -53,7 +55,8 @@ python -m balance_qa --workers 8 impala   --cls warrior --persona stable --budge
 python -m balance_qa --game 127.0.0.1:7777,127.0.0.1:7778 optimize ...       # 이미 떠 있는 게임(Unity)
 python -m balance_qa --workers 8 --game-cmd "Game.exe -batchmode -qaPort {port}" optimize ...
 python -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]  # 플레이 모드 적합성 (LLM 없음)
-python -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run>   # LLM 플레이 — Python ≥3.10 + anthropic venv 전용
+python -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run> --llm openai --model qwen2.5:14b   # 각자 LLM (또는 llm.json). --llm anthropic 은 Python ≥3.10 venv
+python -m play_agent relay --game 127.0.0.1:7800 --loadout reports/<run>  # Claude Code 세션이 플레이어 (API 없음): 이후 step <tool> '<json>' 로 한 행동씩, finish 로 저장
 python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game ...]       # E0~E7
 ```
 
@@ -72,7 +75,7 @@ CLI 옵션을 추가·변경하면 해당 `run/*.py` 설정 블록도 같이 맞
 ## 코드 규칙
 
 - 모듈별 폴더 + 객체지향. 확장 지점은 추상 클래스:
-  게임 `NeedFunction`, `Block` / 학습 `ParamSource`, `Optimizer`, `CandidateDecoder`, `EpisodeRunner`.
+  게임 `NeedFunction`, `Block` / 학습 `ParamSource`, `Optimizer`, `CandidateDecoder`, `EpisodeRunner` / 플레이 `LlmBackend`.
 - CLI·실험 스크립트는 `balance_qa.session.QASession` 만 거쳐서 쓴다.
 - **게임 결정성**: 판의 모든 난수는 `CombatSim.rng`(seed) 하나. 전역 난수 금지. 같은 seed·params·트리거 응답 → 같은 결과.
 - 최적화기 난수는 `backend.generator(seed)` 의 `torch.Generator` 만.

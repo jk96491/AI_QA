@@ -1,8 +1,10 @@
 """check-play — 플레이 프로토콜 적합성 + 스크립트 튜토리얼 완주 (LLM 없음).
 
-unity_game/QaTools~/play_check.py (Unity 쪽 자체 검증) 의 T2~T8 을 학습 쪽으로 옮기고 T9 를 더했다:
+unity_game/QaTools~/play_check.py (Unity 쪽 자체 검증) 의 T2~T8·T-P·T-N 을 학습 쪽으로 옮기고 T9 를 더했다:
   T2 핸드셰이크 · T3 지각 필터+P1 행동 · T4 튜토리얼 q_tut_01~05 · T5 전투 동일성(--balance) · T6 전투 인계
   T7 결정성 · T8 새 게임 · T9 학습 결과 인계(--loadout: params.json/policy.json → set_loadout + 응답기, 밸런스 결과와 일치)
+  T-P (v0.3) 전투 물약 = 퀵슬롯 물약 min(보유, cap), 사용분 차감 · T-N (v0.3) pilot_note
+T5·T9 의 밸런스 비교는 물약을 cap 개 가져간 조우(carried == cap)만 한다 — 밸런스 판은 항상 cap 개로 시작한다.
 
 인스턴스는 직접 띄운 것(--game 등)을 쓰거나 --exe 로 헤드리스 인스턴스를 띄운다.
 검사 항목의 세부 기대값(좌표·UI id·골드)은 QaArena 0.6.x 튜토리얼 데이터에 맞춘 것이다.
@@ -20,6 +22,7 @@ from play_agent.client import BOSS_MISMATCH_CODES, PlayClient, parse_endpoint
 from play_agent.loadout import LoadoutBuilder
 
 EXPECTED_ACTIONS = ["move_to", "interact", "ui_click", "use_item", "engage", "wait"]
+START_STATE = "barrier_inventory_potions"   # v0.3 (v0.2 이하 "full")
 
 
 class Checker:
@@ -113,6 +116,45 @@ def click(c, uid):
     return c.act("ui_click", ui_id=uid)
 
 
+def note(c, kind, text):
+    """pilot_note 원문 요청 (seq 를 쓰지 않는다 — act seq 가 같아야 재생 비교가 된다)."""
+    return c.rq({"type": "pilot_note", "kind": kind, "text": text})
+
+
+def no_notes(entries):
+    return [e for e in entries if e[1] != "pilot_note"]
+
+
+def prep_potions(c):
+    """튜토리얼 q_tut_01~04 를 빠르게: 작은 물약 4개 + 퀵슬롯 0 등록 (전투에 cap=3 개를 가져가게). 마지막 관찰 반환."""
+    goto(c, "npc_elder")
+    c.act("interact", target="npc_elder", verb="talk")
+    click(c, "ui.dialog.choice.0")
+    click(c, "ui.dialog.choice.0")
+    c.act("move_to", target="portal_forest")
+    c.act("interact", target="portal_forest", verb="enter")
+    for h, near in {"herb_01": [-4, 0, -28], "herb_02": [4, 0, -23], "herb_03": [-6, 0, -15]}.items():
+        goto(c, h, near)
+        c.act("interact", target=h, verb="pickup")
+    c.act("move_to", target="portal_village")
+    c.act("interact", target="portal_village", verb="enter")
+    goto(c, "npc_elder")
+    c.act("interact", target="npc_elder", verb="talk")
+    click(c, "ui.dialog.choice.0")
+    click(c, "ui.dialog.choice.0")
+    click(c, "ui.hud.inventory")
+    click(c, "ui.tip.ok")
+    click(c, "ui.inventory.slot.potion_small")
+    click(c, "ui.inventory.assign")
+    click(c, "ui.inventory.close")
+    goto(c, "npc_merchant", near=[-2, 0, -8])
+    c.act("interact", target="npc_merchant", verb="talk")
+    click(c, "ui.dialog.choice.0")
+    click(c, "ui.shop.buy.potion_small")
+    click(c, "ui.shop.buy.potion_small")
+    return click(c, "ui.shop.close")["observation"]
+
+
 def scripted_responder(m):
     """결정적 트리거 응답 (밸런스 서버에도 같은 값을 보낸다)."""
     return {"w_survival": round(0.3 + 0.15 * m["index"], 3)}
@@ -177,6 +219,10 @@ def t2(ck: Checker, ep: str) -> None:
     ck.check("scenarios = {name, boss}, forest_wolf_king → forest_wolf_king", sc.get("forest_wolf_king") == "forest_wolf_king" and sc.get("base") == "default")
     enc = (d.get("combat") or {}).get("encounters") or []
     ck.check("combat.encounters 에 wolf_king → forest_wolf_king", any(e.get("enemy") == "wolf_king" and e.get("scenario") == "forest_wolf_king" for e in enc), str(enc))
+    ck.check("T-N1 hello play 0.3 + describe.pilot_notes", c.pc.protocol_version == "0.3" and bool(d.get("pilot_notes")),
+             "protocol %s, pilot_notes %s" % (c.pc.protocol_version, d.get("pilot_notes")))
+    ck.check("T-P describe.combat.encounter_start_state = %s" % START_STATE, (d.get("combat") or {}).get("encounter_start_state") == START_STATE,
+             str((d.get("combat") or {}).get("encounter_start_state")))
     r = c.rq({"type": "reset", "seed": 1, "start": "checkpoint"})
     ck.check("reset 에 시작 지점 옵션 → bad_request (항상 새 게임)", r.get("code") == "bad_request")
     r = c.rq({"type": "reset", "seed": 1, "class": "paladin"})
@@ -435,6 +481,9 @@ def t56(ck: Checker, ep: str, bal: Optional[str]) -> None:
     r = c.rq({"type": "set_loadout", "persona": "stable", "entries": [stall]})
     ck.check("set_loadout → loadout_ok", r.get("type") == "loadout_ok" and r.get("entries") == 1)
     c.rq({"type": "reset", "seed": 5, "class": "warrior"})
+    o = prep_potions(c)
+    inv0 = {i["id"]: i["count"] for i in o["inventory"]}
+    ck.check("T-P 준비: 작은 물약 4개, 퀵슬롯 등록", inv0.get("potion_small") == 4 and o["player"]["quickslots"][0] == "potion_small", str(inv0))
     c.act("move_to", target="portal_forest")
     r = c.act("interact", target="portal_forest", verb="enter")
     ck.check("숲 진입", r["observation"]["player"]["zone"] == "forest")
@@ -455,6 +504,9 @@ def t56(ck: Checker, ep: str, bal: Optional[str]) -> None:
                 c.send({"type": "observe"})
                 busy = c.recv()
                 order.append("error:" + str(busy.get("code")))
+                c.send({"type": "pilot_note", "kind": "thought", "text": "전투 중 메모"})
+                nb = c.recv()
+                ck.check("T-N4 전투 중 pilot_note → busy", nb.get("code") == "busy", str(nb))
             replies.append(None)
             c.send({"type": "trigger_response", "encounter_id": m["encounter_id"], "index": m["index"], "params": None})
         elif m["type"] == "combat_ended":
@@ -468,11 +520,22 @@ def t56(ck: Checker, ep: str, bal: Optional[str]) -> None:
     ck.check("combat_started 필드 (seq·encounter·enemy·scenario·boss·seed·loadout·triggers·start_state)",
              st and st["seq"] == c.seq and st["encounter_id"] == "enc_1" and st.get("enemy") == "wolf_king" and st["scenario"] == "forest_wolf_king"
              and st["boss"] == "forest_wolf_king" and isinstance(st["seed"], int) and st["loadout"]["matched"] is True
-             and st.get("triggers") == {"boss_hp_below": [0.75, 0.5, 0.25]} and st.get("start_state") == "full",
+             and st.get("triggers") == {"boss_hp_below": [0.75, 0.5, 0.25]} and st.get("start_state") == START_STATE,
              json.dumps(st, ensure_ascii=False)[:220])
     ck.check("조우 seed = SplitMix64(reset.seed=5, k=1)", st and st["seed"] == encounter_seed(5, 1), "seed=%s 기대 %s" % (st and st["seed"], encounter_seed(5, 1)))
     ck.check("action_result interrupted(combat)", res.get("status") == "interrupted" and res.get("interrupted_by") == "combat", str(res.get("status")))
     o = res["observation"]
+    ck.check("T-P combat_started.potions = {potion_small, available 4, carried 3, cap 3}",
+             st.get("potions") == {"item": "potion_small", "available": 4, "carried": 3, "cap": 3}, str(st.get("potions")))
+    fs = st.get("field_state") or {}
+    ck.check("T-P combat_started.field_state {hp_ratio, resource_ratio, potions, deaths_so_far}",
+             fs.get("hp_ratio") == 1.0 and fs.get("potions") == 4 and fs.get("deaths_so_far") == 0 and "resource_ratio" in fs, str(fs))
+    used = en["aftermath"].get("potions_used")
+    inv1 = {i["id"]: i["count"] for i in o["inventory"]}
+    ck.check("T-P aftermath.potions_used = result.consumables_used, 인벤토리에서 차감",
+             used == en["result"]["consumables_used"] and inv1.get("potion_small", 0) == 4 - used and ("item_removed" in kinds(o) or used == 0),
+             "used=%s inventory=%s" % (used, inv1))
+    ck.check("T-P 관찰 events: barrier_restore", "barrier_restore" in kinds(o))
     ck.check("패배 → 체크포인트 부활 (cp_forest), 늑대왕 남아 있음",
              en["result"]["cleared"] is False and en["aftermath"]["respawned_at"] == "cp_forest" and o["player"]["pos"] == [3.0, 0.0, -33.0]
              and "respawned" in kinds(o), "stalled=%s deaths=%s" % (en["result"].get("stalled"), en["result"].get("deaths")))
@@ -484,7 +547,7 @@ def t56(ck: Checker, ep: str, bal: Optional[str]) -> None:
 
     normal = dict(base, params={}, triggers={"boss_hp_below": [0.75, 0.5, 0.25]}, source="test: default")
     c.rq({"type": "set_loadout", "entries": [normal]})
-    won, n, same = False, 0, []
+    won, n, same, books = False, 0, [], []
     r = {}
     while not won and n < 8:
         n += 1
@@ -495,17 +558,69 @@ def t56(ck: Checker, ep: str, bal: Optional[str]) -> None:
         en = next(m for m in log if m["type"] == "combat_ended")
         sent = [scripted_responder(m) for m in log if m["type"] == "trigger"]
         won = en["result"]["cleared"]
-        if bal:
+        p = st.get("potions") or {}
+        books.append(p.get("carried") == min(p.get("available", -1), 3)
+                     and en["aftermath"].get("potions_used") == en["result"]["consumables_used"] <= p.get("carried", -1))
+        if bal and p.get("carried") == p.get("cap"):
             br, k = balance_run(bal, "warrior", "forest_wolf_king", st["seed"], {}, normal["triggers"], sent)
             same.append(br == en["result"] and k == len(sent))
+    ck.check("T-P 조우 %d개 모두 carried = min(보유, cap), potions_used ≤ carried" % n, all(books), str(books))
     ck.check("engage → done, 승리 (%d번째 조우)" % n, won and r.get("status") == "done", str(r.get("status")))
     o = r["observation"]
     ck.check("승리 → 늑대왕 제거·전리품 (aftermath.loot)", ent(o, "wolf_king") is None and any(i["id"] == "wolf_fang" for i in o["inventory"]), str(en["aftermath"]))
     if bal:
-        ck.check("T5 조우 %d개 모두 result 일치 (트리거 응답 포함)" % len(same), all(same) and len(same) == n, str(same))
+        ck.check("T5 carried == cap 인 조우 %d개 모두 result 일치 (트리거 응답 포함)" % len(same), all(same), str(same))
     lg = c.rq({"type": "get_log"})
     kinds_log = [e[1] for e in lg["entries"]]
     ck.check("get_log 에 combat_start·trigger·combat_result 기록", all(k in kinds_log for k in ("combat_start", "trigger", "combat_result")))
+
+    # 퀵슬롯에 물약이 없으면 물약 0개로 싸운다
+    c.rq({"type": "set_loadout", "entries": [stall]})
+    c.rq({"type": "reset", "seed": 5, "class": "warrior"})
+    c.act("move_to", target="portal_forest")
+    c.act("interact", target="portal_forest", verb="enter")
+    log = []
+    c.act("move_to", pos=[0, 0, 32], log=log, responder=lambda m: None)
+    st = next((m for m in log if m["type"] == "combat_started"), {})
+    en = next((m for m in log if m["type"] == "combat_ended"), {})
+    ck.check("T-P 퀵슬롯 물약 없음 → carried 0, consumables_used 0",
+             st.get("potions") == {"item": None, "available": 0, "carried": 0, "cap": 3} and en.get("result", {}).get("consumables_used") == 0
+             and en.get("aftermath", {}).get("potions_used") == 0, str(st.get("potions")))
+    c.close()
+
+
+# ====================================================================== T-N
+def tn(ck: Checker, ep: str) -> None:
+    print("== T-N pilot_note (v0.3)")
+    c = Conn(ep)
+    c.hello()
+    r = note(c, "thought", "reset 전 메모")
+    ck.check("T-N4 reset 전 pilot_note → not_reset", r.get("code") == "not_reset", str(r))
+    c.rq({"type": "reset", "seed": 7, "class": "warrior"})
+    r = note(c, "idea", "모르는 종류")
+    ck.check("T-N4 잘못된 kind → bad_request", r.get("code") == "bad_request", str(r))
+    r = note(c, "plan", "   ")
+    ck.check("T-N4 빈 text → bad_request", r.get("code") == "bad_request", str(r))
+    o1 = c.rq({"type": "observe"})
+    r = note(c, "thought", "촌장에게 먼저 말을 걸어 보자")
+    ck.check("pilot_note → pilot_note_ok", r.get("type") == "pilot_note_ok", str(r))
+    o2 = c.rq({"type": "observe"})
+    ck.check("T-N2 observe → pilot_note → observe: seq 말고 같음 (game_time 포함)", strip_seq(o1) == strip_seq(o2),
+             "game_time %s → %s" % (o1.get("game_time"), o2.get("game_time")))
+    h1 = c.rq({"type": "observe", "mode": "hierarchy", "root": "ui", "max_depth": 12})
+    note(c, "plan", "인벤토리를 열어 물약을 확인한다")
+    note(c, "finding", "경비병 위치를 알려 주는 곳이 없다")
+    h2 = c.rq({"type": "observe", "mode": "hierarchy", "root": "ui", "max_depth": 12})
+    ck.check("T-N2 메모가 hierarchy 관찰에 안 나옴", strip_seq(h1) == strip_seq(h2) and "QA 플레이어" not in json.dumps(h2, ensure_ascii=False))
+    r = click(c, "ui.hud.inventory")
+    ck.check("T-N5 패널이 떠 있어도 인벤토리 버튼 ui_click → done (가림 없음)", r.get("status") == "done",
+             "%s %s" % (r.get("reason"), r.get("reason_detail")))
+    sc = json.dumps(r["observation"]["screen"], ensure_ascii=False)
+    ck.check("T-N5 screen.ui 에 메모 없음", "경비병 위치" not in sc and "촌장에게 먼저" not in sc)
+    lg = c.rq({"type": "get_log"})
+    pn = [e for e in lg["entries"] if e[1] == "pilot_note"]
+    ck.check("T-N3 get_log 에 pilot_note {kind,text} 3개", [e[2]["kind"] for e in pn] == ["thought", "plan", "finding"]
+             and pn[0][2] == {"kind": "thought", "text": "촌장에게 먼저 말을 걸어 보자"}, str([e[2] for e in pn]))
     c.close()
 
 
@@ -520,16 +635,21 @@ def encounter_seed(seed: int, k: int) -> int:
 
 
 # ====================================================================== T7·T8
-def scripted_run(ep: str, seed: int = 11):
+def scripted_run(ep: str, seed: int = 11, notes: bool = False):
+    """notes=True 면 행동 사이에 pilot_note 4개 (T-N3: 로그에서 pilot_note 를 빼면 없는 판과 같아야 함)."""
     c = Conn(ep)
     c.hello()
+    nt = (lambda k, s: note(c, k, s)) if notes else (lambda k, s: None)
     c.rq({"type": "set_loadout", "entries": [{"class": "warrior", "scenario": "forest_wolf_king",
                                               "params": {"w_survival": 0.5}, "triggers": {"boss_hp_below": [0.75, 0.5, 0.25]}}]})
     first = c.rq({"type": "reset", "seed": seed, "class": "warrior"})
+    nt("plan", "촌장부터 찾아간다")
     goto(c, "npc_elder")
     c.act("interact", target="npc_elder", verb="talk")
+    nt("thought", "약초 퀘스트를 받는다")
     click(c, "ui.dialog.choice.0")
     click(c, "ui.dialog.choice.0")
+    nt("finding", "테스트 발견 메모")
     click(c, "ui.hud.quests")
     click(c, "ui.quests.close")
     c.act("move_to", target="portal_forest")
@@ -538,6 +658,7 @@ def scripted_run(ep: str, seed: int = 11):
         goto(c, h, near)
         c.act("interact", target=h, verb="pickup")
     c.act("wait", seconds=2.5)
+    nt("plan", "늑대왕 쪽으로 간다")
     c.act("move_to", pos=[0, 0, 32], responder=scripted_responder)
     c.act("move_to", pos=[0, 0, 8])
     c.act("engage", target="wolf_king", responder=scripted_responder)
@@ -561,6 +682,10 @@ def t78(ck: Checker, ep: str, ep2: Optional[str], bal: Optional[str]) -> None:
     nc = sum(1 for e in a[0] if e[1] == "combat_result")
     ck.check("T7 같은 인스턴스 2회: get_log 동일 (%d항목, 전투 %d회)" % (len(a[0]), nc), a[0] == b[0] and nc >= 1)
     ck.check("T7 마지막 관찰 동일", strip_seq(a[1]) == strip_seq(b[1]))
+    nn = scripted_run(ep, notes=True)
+    ck.check("T-N3 같은 행동열 + 메모 4개: 로그에서 pilot_note 를 빼면 메모 없는 판과 같음",
+             no_notes(nn[0]) == a[0] and len(nn[0]) - len(a[0]) == 4 and strip_seq(nn[1]) == strip_seq(a[1]),
+             "항목 %d vs %d" % (len(nn[0]), len(a[0])))
     c3 = scripted_run(ep, seed=12)
     ck.check("T7 다른 seed → 전투 결과가 달라짐", [e for e in c3[0] if e[1] == "combat_result"] != [e for e in a[0] if e[1] == "combat_result"])
     if ep2:
@@ -606,9 +731,10 @@ def t9(ck: Checker, ep: str, bal: Optional[str], loadout_paths: Sequence[str], s
         return
     e = fwk[0]
     c.rq({"type": "reset", "seed": seed, "class": e.cls})
+    prep_potions(c)   # 전투에 물약 cap 개 (v0.3: 퀵슬롯 물약만 가져간다)
     c.act("move_to", target="portal_forest")
     c.act("interact", target="portal_forest", verb="enter")
-    wins, same, n, answered = 0, [], 0, 0
+    wins, same, n, answered, short = 0, [], 0, 0, 0
     while n < max_encounters:
         r = c.act("move_to", pos=[0, 0, 8])
         log: list = []
@@ -622,7 +748,10 @@ def t9(ck: Checker, ep: str, bal: Optional[str], loadout_paths: Sequence[str], s
         trig = [m for m in log if m["type"] == "trigger"]
         sent = [e.policy.params(m) for m in trig] if e.policy is not None else [None] * len(trig)
         answered += len(trig)
-        if bal:
+        p = st.get("potions") or {}
+        if p and p.get("carried") != p.get("cap"):   # 물약이 모자란 조우 = 학습·밸런스 판과 시작이 다름 → 비교 안 함
+            short += 1
+        elif bal:
             br, k = balance_run(bal, e.cls, e.scenario, st["seed"], e.params,
                                 {"boss_hp_below": e.triggers} if e.triggers else None, sent)
             same.append(br == en["result"] and k == len(sent) and ck_matched)
@@ -631,7 +760,8 @@ def t9(ck: Checker, ep: str, bal: Optional[str], loadout_paths: Sequence[str], s
             break   # 처치하면 적이 사라진다
     ck.check("학습 로드아웃으로 늑대왕 처치 (%d번째 조우, 트리거 응답 %d회, %s)" % (n, answered, e.method), wins == 1, e.source)
     if bal:
-        ck.check("T9 조우 %d개 모두 밸런스 run_episode 와 result 일치 (matched=true)" % len(same), same and all(same), str(same))
+        ck.check("T9 carried == cap 조우 %d개 모두 밸런스 run_episode 와 result 일치 (matched=true, 물약 모자란 조우 %d개 제외)" % (len(same), short),
+                 same and all(same), str(same))
     c.close()
 
 
@@ -683,7 +813,7 @@ class Instances:
 def run_all(game: str, omni: Optional[str] = None, balance: Optional[str] = None, game2: Optional[str] = None,
             loadout: Sequence[str] = (), only: Optional[Sequence[str]] = None) -> Checker:
     ck = Checker()
-    want = set(only or ("T2", "T3", "T4", "T56", "T78", "T9"))
+    want = set(only or ("T2", "T3", "T4", "T56", "TN", "T78", "T9"))
     if "T2" in want:
         t2(ck, game)
     if "T3" in want:
@@ -692,6 +822,8 @@ def run_all(game: str, omni: Optional[str] = None, balance: Optional[str] = None
         t4(ck, game)
     if "T56" in want:
         t56(ck, game, balance)
+    if "TN" in want:
+        tn(ck, game)
     if "T78" in want:
         t78(ck, game, game2, balance)
     if "T9" in want and loadout:

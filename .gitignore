@@ -17,6 +17,13 @@ reports/
 .idea/usage.statistics.xml
 .vs/
 
+# ---- 비밀값 (API 키 등): 환경변수로만 쓰고 파일로 두면 여기서 막는다 ----
+.env
+.env.*
+*.key
+secrets*.json
+llm.json
+
 # ---- Claude Code 개인 설정 ----
 .claude/settings.local.json
 

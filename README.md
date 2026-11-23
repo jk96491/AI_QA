@@ -98,7 +98,7 @@ The measurement history across builds (see `docs/STATUS.md`, in Korean) is where
 
 ```
 balance_qa/     learning platform: protocol client, CMA-ES / ES / IMPALA (PyTorch CPU), rewards, evaluation, reports
-play_agent/     play-mode client: loadout from learned results, numpy policy runner, optional LLM pilot (Claude API)
+play_agent/     play-mode client: loadout from learned results, numpy policy runner, optional LLM pilot (bring your own LLM: Claude API, or any OpenAI-compatible server incl. local Ollama / LM Studio — see docs/LLM_SETUP.md)
 game_sim/       Python reference game (BT, combat sim) — test double and reference implementation
 btqa_game/      Game SDK, Python (copy — the original lives in a separate repository, see below)
 unity_game/     QaArena, the Unity test game (Unity 6000.0); SDK as embedded package Packages/com.btqa.game
@@ -146,7 +146,10 @@ To connect your own game, implement `IEpisodeHost` with the SDK and pass `python
   policy is not yet clearly better than CMA-ES's static weights here. Showing where state-dependent weights matter
   (experiment E7) is open work. Scaling all weights by the same factor doesn't change behavior; this redundancy is left
   as is.
-- **Not yet done:** a live run of the LLM pilot (implemented, tested against a fake API), full-scale runs of
+- **LLM play:** each user plugs in their own LLM (`docs/LLM_SETUP.md`). The first live play-through (2026-11-23) was
+  done by a Claude Code session acting as the player through `play_agent relay` (no API calls); all 5 tutorial quests
+  completed. The API / local-LLM pilot loop is tested against fake backends but not yet run live.
+- **Not yet done:** full-scale runs of
   experiments E1–E7, and a cost comparison against an LLM-only player.
 
 ## Background

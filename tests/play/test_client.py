@@ -50,7 +50,7 @@ class FakeGame:
         self.srv.close()
 
 
-def play_handler(accept_versions=("0.1",), bad_trigger=False):
+def play_handler(accept_versions=("0.1",), bad_trigger=False, pilot_notes=False):
     def h(m, send):
         t = m["type"]
         if t == "hello":
@@ -62,7 +62,10 @@ def play_handler(accept_versions=("0.1",), bad_trigger=False):
             send({"type": "play_description", "game": "fake", "game_version": "0.6.2", "classes": ["warrior"],
                   "scenarios": [{"name": "base", "boss": "default"}, {"name": "forest_wolf_king", "boss": "forest_wolf_king"}],
                   "actions": [{"name": "move_to", "args": {}}, {"name": "interact", "args": {"verb": "talk|pickup"}}],
-                  "combat": {"trigger_state_features": ["hp_ratio"]}, "quests": []})
+                  "combat": {"trigger_state_features": ["hp_ratio"]}, "quests": [],
+                  **({"pilot_notes": {"max_chars": 20, "kinds": ["thought", "plan", "finding"]}} if pilot_notes else {})})
+        elif t == "pilot_note":
+            send({"type": "pilot_note_ok", "seq": m["seq"]})
         elif t == "act":
             if m["args"].get("pos") == [0, 0, 32]:
                 send({"type": "combat_started", "seq": m["seq"], "encounter_id": "enc_1", "class": "warrior", "scenario": "forest_wolf_king"})
@@ -91,7 +94,30 @@ class PlayClientTest(unittest.TestCase):
             self.assertEqual(r["type"], "hello_ok")
             self.assertEqual(c.protocol_version, "0.1")
             self.assertTrue(c.notes)
-        self.assertEqual([m["protocol_version"] for m in g.received if m["type"] == "hello"], ["0.2", "0.1"])
+        self.assertEqual([m["protocol_version"] for m in g.received if m["type"] == "hello"], ["0.3", "0.2", "0.1"])
+
+    def test_pilot_note_sent_only_to_0_3_game_and_trimmed(self):
+        g = FakeGame(play_handler(accept_versions=("0.3",), pilot_notes=True))
+        with PlayClient("127.0.0.1", g.port) as c:
+            c.hello()
+            c.describe()
+            self.assertTrue(c.note("경비병이 안 보인다. 마을 남동쪽을 더 찾아보자", "plan"))
+            with self.assertRaises(ValueError):
+                c.note("x", "shout")
+        sent = [m for m in g.received if m["type"] == "pilot_note"]
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0]["kind"], "plan")
+        self.assertEqual(len(sent[0]["text"]), 20)               # max_chars 로 자름
+        self.assertTrue(sent[0]["text"].endswith("…"))
+
+    def test_pilot_note_kept_locally_on_old_game(self):
+        g = FakeGame(play_handler(accept_versions=("0.1",)))
+        with PlayClient("127.0.0.1", g.port) as c:
+            c.hello()
+            c.describe()
+            self.assertFalse(c.note("생각"))
+            self.assertEqual(c.pilot_notes, [{"kind": "thought", "text": "생각", "shown": False}])
+        self.assertFalse([m for m in g.received if m["type"] == "pilot_note"])
 
     def test_act_collects_combat_and_answers_trigger_immediately(self):
         g = FakeGame(play_handler(accept_versions=("0.2",)))
