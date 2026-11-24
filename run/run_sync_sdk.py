@@ -1,11 +1,12 @@
-"""BT-QA Game SDK(별도 레포 btqa_sdk)에서 이 저장소가 쓰는 부분을 통째로 복사한다.
+"""BT-QA SDK(별도 레포 btqa_sdk)에서 **Python 이 아닌 것**(Unity 패키지·계약 문서)을 이 저장소로 복사한다.
 
-이 저장소는 실행할 때 btqa_sdk 를 참조하지 않는다 — 아래 사본만 쓴다 (사용자 결정 2026-11-23).
+Python 패키지(btqa_game·btqa_play)는 복사하지 않는다 — btqa_sdk 를 venv 에 편집 설치해 직접 참조한다
+(사용자 결정 2026-11-24, requirements.txt 참고). Unity 는 embedded 패키지라 사본이 필요하고, 계약 문서는 저장소 문서가 가리키는 곳이다.
 
     원본 (btqa_sdk 레포)                 사본 (이 저장소)
-    python/btqa_game/                →  btqa_game/                        game_sim 이 import
     unity/com.btqa.game/             →  unity_game/Packages/com.btqa.game  Unity embedded 패키지
-    docs/PROTOCOL.md                 →  docs/PROTOCOL.md                  계약 문서
+    docs/PROTOCOL.md                 →  docs/PROTOCOL.md                  계약 문서 (밸런스)
+    docs/PLAY_PROTOCOL.md            →  docs/PLAY_PROTOCOL.md             계약 문서 (플레이 모드)
 
 SDK 를 고치는 곳은 원본뿐이다. 원본을 고친 뒤 이 스크립트를 실행하고 (Unity 면 재빌드), 사본을 직접 고치지 않는다.
 tests/sdk/test_sdk_copies.py 가 원본이 있을 때 사본과 비교한다 (원본이 없으면 건너뜀).
@@ -29,9 +30,9 @@ SKIP_SUFFIX = (".pyc", ".pyo")
 
 #: (원본 상대 경로, 사본 경로)
 TARGETS: Tuple[Tuple[str, Path], ...] = (
-    ("python/btqa_game", ROOT / "btqa_game"),
     ("unity/com.btqa.game", ROOT / "unity_game" / "Packages" / "com.btqa.game"),
     ("docs/PROTOCOL.md", ROOT / "docs" / "PROTOCOL.md"),
+    ("docs/PLAY_PROTOCOL.md", ROOT / "docs" / "PLAY_PROTOCOL.md"),
 )
 
 

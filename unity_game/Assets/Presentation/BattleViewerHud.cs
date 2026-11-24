@@ -232,7 +232,7 @@ namespace Qa.Presentation
         void DrawPlayerPanel()
         {
             var p = _sim.PlayerState;
-            float w = 460, h = 112, x = (Screen.width - w) / 2 - (_panel ? 150 : 0), y = Screen.height - h - 14;
+            float w = 460, h = 112, x = (Screen.width - w) / 2 - (_panel ? 150 : 0) + (_playMode ? 60 : 0), y = Screen.height - h - 14;   // 플레이 모드: 왼쪽 아래 QA 패널을 피해 오른쪽으로 (스킬 바와 같이)
             GUI.Box(new Rect(x, y, w, h), GUIContent.none, _box);
             var cc = ViewerArt.ClassColor(_playerClass);
             string hex = ColorUtility.ToHtmlStringRGB(cc);
@@ -295,7 +295,8 @@ namespace Qa.Presentation
         void DrawLog()
         {
             float h = 20 + _log.Count * 18, w = 420;
-            var r = new Rect(12, Screen.height - h - 14, w, h);
+            // 플레이 모드: 왼쪽 아래는 "QA 플레이어" 패널 자리 → 로그는 왼쪽 정보 상자(12..104) 바로 아래 (H3)
+            var r = _playMode ? new Rect(12, 116, w, h) : new Rect(12, Screen.height - h - 14, w, h);
             GUI.Box(r, GUIContent.none, _box);
             for (int i = 0; i < _log.Count; i++)
                 GUI.Label(new Rect(r.x + 10, r.y + 8 + i * 18, w - 20, 20), _log[i], _small);

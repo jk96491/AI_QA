@@ -1,13 +1,14 @@
 # 현재 상태 · 이어서 할 일 (2026-11-24 기준)
 
 > 새 세션은 이 문서부터 읽는다 — **먼저 5장 맨 위 "다음 세션 할 일"**. 구조·규칙은 `../CLAUDE.md`, 게임 계약은 `PROTOCOL.md`(**v1.4**), **SDK 는 `SDK.md`**(0.2.0), 플레이 모드 계약은 `PLAY_PROTOCOL.md`(**v0.3**), 밴딧 설계 `BANDIT_IMPALA_DESIGN.md`, LLM 연결 `LLM_SETUP.md`.
-> 현재 Unity 빌드 **QaArena 0.8.2** (`unity_game/Build`, 밸런스 프로토콜 1.3 SDK 로 빌드 — 1.4 반영 전, 플레이 0.4·0.3 hello 둘 다 받음).
+> 현재 Unity 빌드 **QaArena 0.8.3** (2026-11-24 20:34, `unity_game/REPORT_0.8.3.md`): 밸런스 **1.4 `initial_state` 반영**, 플레이 `play_description` 에 행동 설명·스키마·`pilot_guide`·`progress_keys` **게임 선언** (외부 스펙 없이 동작), 화면 H1·H3·H4. 밸런스 데이터 변경 없음 (T1 21/21) → 재학습 불필요. 플레이 0.4·0.3 hello 둘 다 받음.
 
 ## 1. 지금 어디까지 왔나
 
 | 영역 | 상태 |
 |---|---|
-| **BT-QA Game SDK 0.2.0** (2026-11-23) | **원본은 별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** (0.1.0 = `5627219`, **0.2.0 = `6c71e4c` 푸시됨**, 프로토콜 1.4 `initial_state`). 로컬 clone `btqa_sdk/` 있음 (git 제외 — 원본 수정은 여기서 커밋·푸시 후 `run/run_sync_sdk.py`). 이 저장소는 **사본 3개만** 씀: `btqa_game/`(Python), `unity_game/Packages/com.btqa.game`(Unity embedded), `docs/PROTOCOL.md`(계약 v1.4). 갱신 `run/run_sync_sdk.py`. **학습 대상 = 블록 가중치뿐** (CMA-ES 포함). `docs/SDK.md` |
+| **BT-QA SDK 0.3.0** (2026-11-24) | **별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** (0.1.0 = `5627219`, 0.2.0 = `6c71e4c`, 0.3.0 = `42ab358` `btqa_play` 추가, 푸시됨). 로컬 clone `btqa_sdk/` (git 제외). **Python 은 btqa_sdk 직접 참조** (venv 편집 설치 `pip install --no-deps --no-build-isolation -e ./btqa_sdk`, 사용자 결정 2026-11-24 — 루트 `btqa_game/`·`btqa_play/` 사본 없앰). 사본은 Unity 패키지·`docs/PROTOCOL.md`·`docs/PLAY_PROTOCOL.md` 3개만 (`run/run_sync_sdk.py`). **학습 대상 = 블록 가중치뿐** (CMA-ES 포함). `docs/SDK.md` |
+| **BT-QA Play SDK `btqa_play` (SDK 0.3.0, 2026-11-24)** | LLM 플레이어 클라이언트를 SDK 로 옮김 (`btqa_sdk/python/btqa_play`, 직접 참조): PlayClient·LLM 도구(게임 선언 → **외부 스펙** → 일반형, **SDK 에 게임 내용 없음** — 사용자 지적·결정 2026-11-24)·시스템 프롬프트(SDK 공통 = 도구 사용 방식만 + `pilot_guide`)·`PlaySpec`(`btqa-play-spec/1`, QaArena = `play_agent/specs/qa_arena.play.json`)·진척 `progress_keys`·LlmPilot·PilotRelay(`prepare`/`run_meta` 확장)·LLM 백엔드·`python -m btqa_play tools`. 계약 `PLAY_PROTOCOL.md` 원본도 SDK 레포로 (0.3 + **선택 필드 4.2.1**, hello 버전 유지). `play_agent` = SDK + 로드아웃·응답기·check-play(T-D 추가). 테스트: 메인 120 OK, SDK 26 OK, **check-play 127/127** (0.8.2, 행동 6개 모두 QaArena 스펙에서). |
 | 학습 플랫폼 `balance_qa` | 완료: 평가·CMA-ES·ES 정책·**IMPALA**(Beta Actor-Critic, V-trace, torch CPU)·민감도·리포트 |
 | IMPALA 액터 | 로컬 다중 프로세스(기본) / threads / external(클라우드 대비). 클라우드 보강 항목은 `DISTRIBUTED.md` 4장 |
 | 게임 대역 `game_sim` | 참조 구현 + 테스트용 (지우지 않음). 프로토콜 1.3, 버전 0.5.0 (`btqa_game` 위에서 동작) |
@@ -86,9 +87,11 @@
 | `PLAY_PROTOCOL_0.3_REQUEST.md` | pilot_note 표시·전투 물약 = 인벤토리·경비병 안내 (+4장 H1·H2) | 반영됨 (0.7.1~0.8.2). **H1(메모 패널 ↔ 대화창 겹침) 미반영** |
 | `BOSS_PATTERN_REQUEST.md` | 늑대왕 2D 아레나·낙석·장판·탄막·돌진 | 반영됨 (0.8.0, `BOSS_PATTERN_REPORT.md`) |
 | `PLAYER_SKILL_BT_REQUEST.md` | 스킬 6~7·블록 5개(`w_evade`·`w_setup`)·스킬 바 | 반영됨 (0.8.1, `SKILL_BT_REPORT.md`) |
-| **`PROTOCOL_UPDATE_1.4.md`** | 밸런스 1.4 `initial_state` (QaArenaHost 선언 2줄 + `SetStartHpRatio`) | **대기** — Unity 세션이 "다음 Unity 세션에서" 하기로 메모 (2026-11-23) |
-| **`UI_FOLLOWUP_0.8.2.md`** | 화면 H1(계속)·H3(전투 로그 ↔ QA 패널)·H4(스킬 이름 ↔ 쿨 숫자) | **전달 대기** (2026-11-24) |
+| `PROTOCOL_UPDATE_1.4.md` | 밸런스 1.4 `initial_state` (QaArenaHost 선언 2줄 + `SetStartHpRatio`) | 반영됨 (0.8.3) |
+| `UI_FOLLOWUP_0.8.2.md` | 화면 H1·H3·H4 | 반영됨 (0.8.3, 스크린샷 `QaTools~/shots_0.8.3/`) |
 | (Unity → 학습) `PLAY_PROTOCOL_0.4_COMPUTER_USE_REQUEST.md` | 비전 없는 computer use (좌표·raw 입력) — 빌드엔 이미 들어감 (0.4 hello 만) | **사용자 결정 대기** — 계약은 0.3 유지 |
+| **`HANDOFF_0.8.3.md`** | 전달용 묶음: 1.4 + PLAY_SDK_DECLARATION + UI_FOLLOWUP_0.8.2 → 0.8.3 한 빌드 | **반영됨 (0.8.3, `REPORT_0.8.3.md`)**. 학습 쪽 확인 (최종 빌드): `btqa_game check` PASS(v1.4 4항목), `check-game` PASS, `play_agent tools --spec none` 6개 모두 game/game·선언 검사 통과, **check-play 127/127** |
+| `PLAY_SDK_DECLARATION_REQUEST.md` | 플레이 행동·안내 선언 (4.2.1) | 반영됨 (0.8.3). Unity 가 고친 점: wait 사건 이름(`quest_update` 없음 → 실제 kind), 퀵슬롯 2칸 (스펙 파일도 고침) |
 | `SDK_MIGRATION.md` | SDK 도입 (0.7.0) 기록 — 바뀐 파일, 검증, **앞으로 SDK 패키지 수정 금지·블록 추가 방법** | 학습 쪽이 직접 반영 완료. **Unity 에이전트가 다음 작업 전에 읽도록 사용자가 알려 줄 것** |
 
 Unity 에이전트에게 지시할 때는 사용자가 직접 전달한다 (학습 쪽은 `unity_game/` 코드를 고치지 않음).
@@ -98,7 +101,9 @@ Unity 쪽은 **별도 Claude Code 세션**(이름 `unity-game-1b`)이 맡고, �
 
 ### 다음 세션 할 일 (2026-11-24 저장)
 
-1. **Unity 1.4 반영 확인** (`unity_game/PROTOCOL_UPDATE_1.4.md`, Unity 세션이 다음에 진행) → 빌드 0.8.3 이 오면:
+0. **(2026-11-24 저녁) 플레이 클라이언트 SDK화 후속**: SDK 레포(`btqa_sdk/`, 0.3.0) 커밋·푸시 + 메인 저장소 커밋 (사용자 확인 후). `unity_game/PLAY_SDK_DECLARATION_REQUEST.md` 전달 → 빌드가 오면 `python -m btqa_play tools --game ...` 로 출처가 전부 `game/game` 인지, check-play T-D. 다음 단계 후보: MCP 래퍼(`GameTools` → MCP 도구), 게임 쪽 플레이 서버 SDK(Unity C#), 공용 플레이 적합성 검사 (`btqa_sdk/docs/PLAY_SDK.md` 7장).
+
+1. **Unity 1.4 반영 확인 — 완료 (0.8.3, 2026-11-24)**. 남은 것:
    `python -m btqa_game check --game ...` + `venv\Scripts\python.exe -m balance_qa check-game --game-cmd ...` (initial_state 항목 PASS) →
    **E8 을 늑대왕으로**: `venv\Scripts\python.exe -m experiments.e8_bandit --workers 8 --game-cmd "unity_game/Build/QaArena.exe -batchmode -nographics -qaPort {port}" --combos warrior:forest_wolf_king` (첫 판은 `--quick`, 본 실행은 칸당 판수·예산을 키워서). 결론 전 `/bt-sim-balance-review`.
    game_sim E8 결과(밴딧 이득 없음)는 아래 기록 — Unity 에서 다시 판정.
@@ -127,7 +132,7 @@ Unity 쪽은 **별도 Claude Code 세션**(이름 `unity-game-1b`)이 맡고, �
    - **스킬·BT 확장 요청** `unity_game/PLAYER_SKILL_BT_REQUEST.md` (보스 패턴 작업 뒤, 같은 0.8.0 권장): 직업당 스킬 6~7(역할 Mobility·Setup 추가), 블록 3→5(`w_evade`·`w_setup`), 블록 안 스킬 점수·콤보·시전 취소, 표시 전용 스킬 바(쿨 쓸기). 측정: 평타 비중 전사 80%·마법사/궁수 64%, 전사 돌진 0%(game_sim default).
    - Unity 가 보낸 요청 `unity_game/PLAY_PROTOCOL_0.4_COMPUTER_USE_REQUEST.md` (비전 없는 computer use) — 학습 쪽 검토 대기.
    - **LLM 은 각자 고른다 (사용자 요청 2026-11-23)**: 안내 `docs/LLM_SETUP.md`, 코드 `play_agent/llm/` (`LlmBackend` → `AnthropicBackend` / `OpenAICompatBackend`: 로컬 Ollama·LM Studio·llama.cpp·vLLM·호환 클라우드), 설정 `llm.json`(git 제외, 예시 `play_agent/llm.example.json`), `play --llm ...`, PyCharm `14` = `run/run_play.py`. 로컬·클라우드 백엔드는 가짜 전송 테스트만 — 실제 LLM 으로는 아직 안 돌림.
-   - 아래는 API(`play_agent play`) 로 돌릴 때의 준비 — Python 3.12 + `venv_play`(anthropic 2.12) 는 설치 완료, 키는 미설정 (API 는 정액제와 별도 과금이라 보류). 기존 기록 (2026-11-23 세션 끝) — 사용자가 1~3 준비 후 알려 주면 4 를 실행하고 결과 정리:
+   - 아래는 API(`play_agent play`) 로 돌릴 때의 준비 — `venv_play` 는 **2026-11-24 삭제** (relay 로 충분 — 사용자 결정; API 를 쓸 때 `docs/LLM_SETUP.md` C 로 다시 만들고 `pip install -e ./btqa_sdk`), 키는 미설정 (API 는 정액제와 별도 과금이라 보류). 기존 기록 (2026-11-23 세션 끝) — 사용자가 1~3 준비 후 알려 주면 4 를 실행하고 결과 정리:
    1. Python 3.12 설치: `winget install Python.Python.3.12` (또는 Anaconda `conda create -n play_agent python=3.12`)
    2. `py -3.12 -m venv venv_play` → `venv_play\Scripts\python.exe -m pip install anthropic numpy` (`venv_play/` 는 .gitignore 에 있음)
    3. console.anthropic.com 에서 API 키 → `setx ANTHROPIC_API_KEY "sk-ant-..."` (새 터미널·PyCharm 재시작). 키는 채팅에 붙이지 않는다

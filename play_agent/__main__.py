@@ -10,6 +10,9 @@
       anthropic = Claude API (Python ≥ 3.10 venv + anthropic, ANTHROPIC_API_KEY), openai = OpenAI 호환 로컬/클라우드 (3.8 venv OK)
   relay       대화형 에이전트(Claude Code 세션 등)가 직접 플레이어 — API 호출 없음, 3.8 venv
       --game ... --loadout ... [--port 7899]      이후 `step <tool> '<json>' [--think "..."]` 로 한 행동씩 (finish 로 끝, 기록 저장)
+  tools       게임 선언 → LLM 도구·출처·시스템 프롬프트 미리 보기 + 선언 검사 (= python -m btqa_play tools)
+
+루프·도구·LLM 백엔드는 SDK btqa_play. 여기서는 학습 결과 로드아웃·전투 응답기를 붙인다.
 """
 from __future__ import annotations
 
@@ -20,8 +23,11 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+from btqa_play.client import PlayClient
+from play_agent import QA_ARENA_SPEC
 from play_agent.check import Instances, run_all
-from play_agent.client import PlayClient
+
+SPEC_HELP = "외부 플레이 스펙 (기본 play_agent/specs/qa_arena.play.json, none = 없이)"
 from play_agent.loadout import LoadoutBuilder
 
 
@@ -79,8 +85,8 @@ def cmd_loadout(a: argparse.Namespace) -> int:
 
 
 def cmd_play(a: argparse.Namespace) -> int:
-    from play_agent.llm import load_config, make_backend
-    from play_agent.pilot import LlmPilot, PilotConfig   # anthropic SDK 는 AnthropicBackend 안에서만 import
+    from btqa_play.llm import load_config, make_backend
+    from btqa_play.pilot import LlmPilot, PilotConfig   # anthropic SDK 는 AnthropicBackend 안에서만 import
 
     try:
         llm_cfg = load_config(a.llm_config, {"llm": a.llm, "model": a.model, "base_url": a.base_url,
@@ -101,7 +107,7 @@ def cmd_play(a: argparse.Namespace) -> int:
         if lb.entries:
             c.set_loadout(lb.wire_entries(desc), persona=lb.persona())
         obs = c.reset(seed=a.seed, cls=a.cls)
-        pilot = LlmPilot(c, responder=lb.responder(), config=cfg, backend=backend)
+        pilot = LlmPilot(c, responder=lb.responder(), config=cfg, backend=backend, spec=_spec_arg(a))
         run = pilot.run(obs)
         log = c.get_log()
         notes = c.notes + lb.notes
@@ -125,7 +131,7 @@ def cmd_play(a: argparse.Namespace) -> int:
 
 def cmd_relay(a: argparse.Namespace) -> int:
     from play_agent.relay import PilotRelay
-    PilotRelay(a.game, a.loadout, seed=a.seed, cls=a.cls, port=a.port, out=a.out).serve()
+    PilotRelay(a.game, a.loadout, seed=a.seed, cls=a.cls, port=a.port, out=a.out, spec=_spec_arg(a)).serve()
     return 0
 
 
@@ -133,6 +139,18 @@ def cmd_step(a: argparse.Namespace) -> int:
     from play_agent.relay import relay_step
     print(relay_step(a.tool, json.loads(a.input or "{}"), port=a.port, thought=a.think, kind=a.kind))
     return 0
+
+
+def _spec_arg(a: argparse.Namespace) -> Optional[str]:
+    """--spec 기본 = QaArena 스펙, "none" = 외부 스펙 없이 (게임 선언·일반형만)."""
+    v = getattr(a, "spec", None)
+    return None if v in (None, "none") else v
+
+
+def cmd_tools(a: argparse.Namespace) -> int:
+    from btqa_play.__main__ import cmd_tools as sdk_tools
+    a.spec = _spec_arg(a)
+    return sdk_tools(a)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -161,7 +179,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--cls", default="warrior")
     p.add_argument("--llm", choices=["anthropic", "openai"], help="LLM 백엔드 (없으면 llm.json 의 llm). openai = OpenAI 호환(로컬 Ollama·LM Studio 등)")
-    p.add_argument("--llm-config", help="LLM 설정 파일 (기본 ./llm.json, 예시 play_agent/llm.example.json)")
+    p.add_argument("--llm-config", help="LLM 설정 파일 (기본 ./llm.json, 예시 btqa_sdk/python/btqa_play/llm.example.json)")
     p.add_argument("--model", help="anthropic 기본 claude-opus-5-5 / openai 는 필수 (예: qwen2.5:14b)")
     p.add_argument("--base-url", help="openai: 서버 주소 (기본 http://localhost:11434/v1 = Ollama)")
     p.add_argument("--api-key-env", help="키가 든 환경변수 **이름** (키 값은 인자로 넘기지 않는다)")
@@ -169,6 +187,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--max-actions", type=int, default=150)
     p.add_argument("--max-calls", type=int, default=250)
     p.add_argument("--out", default="reports")
+    p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
     p.set_defaults(fn=cmd_play)
 
     p = sub.add_parser("relay", help="대화형 에이전트가 플레이어가 되는 중계기 (API 호출 없음, 3.8 venv)")
@@ -178,7 +197,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--cls", default="warrior")
     p.add_argument("--port", type=int, default=7899)
     p.add_argument("--out", default="reports")
+    p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
     p.set_defaults(fn=cmd_relay)
+
+    p = sub.add_parser("tools", help="게임 선언 → LLM 도구·시스템 프롬프트 미리 보기 + 선언 검사 (SDK)")
+    p.add_argument("--game", required=True)
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
+    p.set_defaults(fn=cmd_tools)
 
     p = sub.add_parser("step", help="relay 에 도구 호출 1개 보내고 결과 출력 (tool=intro 처음 관찰, note 메모만)")
     p.add_argument("tool")

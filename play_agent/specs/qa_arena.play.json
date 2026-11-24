@@ -1,0 +1,45 @@
+{
+  "_comment": "QaArena 플레이 스펙 (btqa-play-spec/1). 게임(play_description)이 아직 선언하지 않은 LLM 도구 설명·스키마·안내를 채운다. Unity 가 actions[].description/schema·pilot_guide 를 보내면 게임 선언이 이 파일보다 우선한다 (unity_game/PLAY_SDK_DECLARATION_REQUEST.md). 검사: python -m btqa_play spec play_agent/specs/qa_arena.play.json",
+  "format": "btqa-play-spec/1",
+  "actions": {
+    "move_to": {
+      "description": "엔티티(target) 또는 좌표(pos=[x,y,z]) 로 걸어간다. 둘 중 하나만 준다. 대상의 상호작용 거리 안에 들어가면 끝난다. 시야 밖 대상은 not_visible — 근처 좌표로 먼저 간다. 이동 중 적의 어그로 범위에 들어가면 전투가 자동으로 시작되고 학습된 BT 가 싸운다 (결과는 combats 에 온다).",
+      "schema": {"type": "object", "properties": {
+        "target": {"type": "string", "description": "observation.entities[].id"},
+        "pos": {"type": "array", "items": {"type": "number"}, "description": "[x,y,z] 월드 좌표"}}, "required": []}
+    },
+    "interact": {
+      "description": "엔티티와 상호작용 (verb: 엔티티 actions 에 있는 것). 범위 밖이면 out_of_range — 먼저 move_to.",
+      "schema": {"type": "object", "properties": {
+        "target": {"type": "string", "description": "observation.entities[].id"},
+        "verb": {"type": "string", "enum": ["talk", "pickup", "open", "enter"]}}, "required": ["target", "verb"]}
+    },
+    "ui_click": {
+      "description": "화면 UI 요소를 클릭 (screen.ui 의 id). interactable:false 인 요소는 가려졌거나 비활성이라 실패한다.",
+      "schema": {"type": "object", "properties": {"ui_id": {"type": "string", "description": "screen.ui[].id"}}, "required": ["ui_id"]}
+    },
+    "use_item": {
+      "description": "인벤토리 아이템 사용 (inventory 의 id).",
+      "schema": {"type": "object", "properties": {"item_id": {"type": "string", "description": "observation.inventory[].id"}}, "required": ["item_id"]}
+    },
+    "engage": {
+      "description": "적에게 다가가 일부러 전투를 시작한다. 전투는 학습된 BT 가 하고, 끝나면 결과가 combats 에 온다.",
+      "schema": {"type": "object", "properties": {"target": {"type": "string", "description": "role=enemy 엔티티 id"}}, "required": ["target"]}
+    },
+    "wait": {
+      "description": "세계 시간을 보낸다: seconds 초, 또는 until 사건(관찰 events 의 kind — 예: quest_progress, quest_completed, dialog_closed, combat_ended, item_added) 중 먼저.",
+      "schema": {"type": "object", "properties": {
+        "seconds": {"type": "number", "description": "초"},
+        "until": {"type": "string", "description": "세계 사건 종류"}}, "required": []}
+    }
+  },
+  "meta_tools": {
+    "inspect_ui": {"description": "UI 계층 트리를 본다 (디버그용, 평소엔 필요 없음). root = UI id (예: ui.inventory) 또는 null(전체)."},
+    "finish": {"description": "플레이를 끝낸다. 목표를 다 이뤘거나, 더 진행할 방법이 없다고 판단했을 때. blocked 에 막힌 이유(게임 버그로 보이는 것 포함)를 적는다."}
+  },
+  "pilot_guide": {
+    "system_prompt": "이 게임의 비전투 부분(이동·대화·퀘스트·아이템·UI)을 플레이한다.\n\n관찰:\n- player: 지역·위치·체력·골드·퀵슬롯·상태\n- quests: 진행 중인 퀘스트와 목표 (progress [현재, 목표], hint_targets = 관련 엔티티 id). state=ready 는 반납만 남은 것\n- entities: 지금 보이는 것만 (시야 밖은 없다). marker: quest_available / quest_turn_in / objective\n- screen.modal: 입력을 막는 창 (dialog / quests / inventory / shop / tip). screen.ui: 클릭 가능한 UI 요소 (interactable)\n- events: 직전 이후 일어난 일\n\n규칙:\n- 상호작용은 먼저 move_to 로 다가간 뒤 interact. 보이지 않는 대상은 근처 좌표나 지역 입구로 먼저 간다.\n- 창(modal)이 열려 있으면 그 창의 버튼으로 진행하거나 닫는다. interactable:false 버튼은 가려졌거나 비활성이다 — 가린 창부터 처리한다.\n- 적에게 다가가거나 engage 하면 학습된 전투 AI 가 싸운다. 전투 물약은 퀵슬롯에 등록한 인벤토리 물약이다. 지면 체크포인트에서 부활하니 다시 시도할 수 있다.\n- 게임 버그로 보이는 것은 finish 의 blocked 에 UI id·메시지를 포함해 적는다.",
+    "default_goal": "튜토리얼 퀘스트를 모두 끝까지 완료하라 (진행 중인 퀘스트가 없어질 때까지)."
+  },
+  "progress_keys": ["quests", "player.zone", "inventory", "player.gold", "player.quickslots"]
+}

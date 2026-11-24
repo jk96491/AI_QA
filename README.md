@@ -98,9 +98,9 @@ The measurement history across builds (see `docs/STATUS.md`, in Korean) is where
 
 ```
 balance_qa/     learning platform: protocol client, CMA-ES / ES / IMPALA (PyTorch CPU), rewards, evaluation, reports
-play_agent/     play-mode client: loadout from learned results, numpy policy runner, optional LLM pilot (bring your own LLM: Claude API, or any OpenAI-compatible server incl. local Ollama / LM Studio — see docs/LLM_SETUP.md)
+btqa_sdk/       BT-QA SDK — separate repository, cloned here and installed editable (not committed)
+play_agent/     play-mode client (on top of the SDK's btqa_play): loadout from learned results, numpy policy runner, optional LLM pilot (bring your own LLM: Claude API, or any OpenAI-compatible server incl. local Ollama / LM Studio — see docs/LLM_SETUP.md)
 game_sim/       Python reference game (BT, combat sim) — test double and reference implementation
-btqa_game/      Game SDK, Python (copy — the original lives in a separate repository, see below)
 unity_game/     QaArena, the Unity test game (Unity 6000.0); SDK as embedded package Packages/com.btqa.game
 qa_specs/       personas
 experiments/    hypothesis experiments E0–E7
@@ -108,9 +108,9 @@ run/            one-click run scripts (also registered as PyCharm run configurat
 docs/           protocol (contract), play protocol, architecture, status — mostly Korean
 ```
 
-The Game SDK (Unity package + Python package + protocol) is maintained separately at
-**[jk96491/btqa_sdk](https://github.com/jk96491/btqa_sdk)**. This repository vendors identical copies
-(`run/run_sync_sdk.py`); a test checks they match.
+The SDK (Python `btqa_game` game side + `btqa_play` LLM play client, Unity package, protocols) is maintained separately at
+**[jk96491/btqa_sdk](https://github.com/jk96491/btqa_sdk)**. Python uses it directly (editable install, see Quick start);
+the Unity package and the protocol documents are vendored copies (`run/run_sync_sdk.py`), and a test checks they match.
 
 ## Quick start
 
@@ -118,6 +118,8 @@ Requirements: Python 3.8+, `numpy`, `torch` (CPU). The Unity build is optional �
 
 ```bash
 pip install -r requirements.txt
+git clone https://github.com/jk96491/btqa_sdk.git btqa_sdk
+pip install --no-deps --no-build-isolation -e ./btqa_sdk   # SDK (btqa_game, btqa_play)
 python -m unittest discover -s tests -t .                  # tests
 python -m balance_qa check-game                            # protocol conformance (Python game)
 python -m balance_qa --workers 4 optimize --cls warrior --persona stable --budget 3000          # CMA-ES

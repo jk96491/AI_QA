@@ -9,10 +9,13 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from play_agent.client import PlayClient, PlayError
+from btqa_play.client import PlayClient, PlayError
 from play_agent.loadout import LoadoutBuilder
-from play_agent.pilot import LlmPilot, PilotConfig
-from play_agent.tools import build_tools
+from btqa_play.pilot import LlmPilot, PilotConfig
+from btqa_play.prompt import build_system_prompt, default_goal
+from btqa_play.spec import PlaySpec
+from btqa_play.tools import build_tools, tool_sources, validate_description
+from play_agent import QA_ARENA_SPEC
 
 OBS = {"type": "observation", "seq": 1, "player": {"zone": "village", "gold": 20, "quickslots": [None, None]},
        "quests": [{"id": "q_tut_01", "state": "active", "objectives": [{"progress": [0, 1]}]}], "inventory": [], "entities": [],
@@ -180,9 +183,17 @@ class LoadoutBuilderTest(unittest.TestCase):
         self.assertTrue(lb.check_against({"classes": ["warrior"], "scenarios": [{"name": "base"}]}))
 
 
+QA_ACTIONS = [{"name": "move_to", "args": {"target": "entity_id | null", "pos": "[x,y,z] | null"}},
+              {"name": "interact", "args": {"target": "entity_id", "verb": "talk|pickup|open|enter"}},
+              {"name": "ui_click", "args": {"ui_id": "string"}}, {"name": "use_item", "args": {"item_id": "string"}},
+              {"name": "engage", "args": {"target": "entity_id"}},
+              {"name": "wait", "args": {"seconds": "number | null", "until": "event_kind | null"}}]
+
+
 class ToolsTest(unittest.TestCase):
     def test_tools_follow_description_and_are_strict(self):
-        tools = build_tools({"actions": [{"name": "move_to", "args": {}}, {"name": "interact", "args": {"verb": "talk|pickup"}}]})
+        spec = PlaySpec.load(QA_ARENA_SPEC)
+        tools = build_tools({"actions": QA_ACTIONS[:2]}, spec)
         names = [t["name"] for t in tools]
         self.assertEqual(names, ["move_to", "interact", "inspect_ui", "finish"])   # ui_input 등 게임이 안 준 것은 없음
         for t in tools:
@@ -190,7 +201,16 @@ class ToolsTest(unittest.TestCase):
             self.assertTrue(t["strict"])
             self.assertFalse(s["additionalProperties"])
             self.assertEqual(sorted(s["required"]), sorted(s["properties"]))
-        self.assertEqual(tools[1]["input_schema"]["properties"]["verb"]["enum"], ["talk", "pickup"])
+        self.assertEqual(tools[1]["input_schema"]["properties"]["verb"]["enum"], ["talk", "pickup", "open", "enter"])
+
+    def test_qa_arena_spec_covers_every_action_of_0_8_2(self):
+        # QaArena 0.8.2 의 play_description.actions (PlaySession.Describe) — 스펙만으로 일반형이 하나도 없어야 한다
+        spec = PlaySpec.load(QA_ARENA_SPEC)
+        desc = {"actions": QA_ACTIONS}
+        self.assertEqual(validate_description(desc, spec), [])
+        self.assertEqual(set(tool_sources(desc, spec).values()), {"spec/spec"})
+        self.assertIn("퀵슬롯", build_system_prompt(desc, spec))
+        self.assertTrue(default_goal(desc, spec).startswith("튜토리얼"))
 
 
 def block(**kw):

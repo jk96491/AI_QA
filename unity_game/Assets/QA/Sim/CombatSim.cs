@@ -107,6 +107,14 @@ namespace Qa.Sim
             _p.Potions = Math.Max(0, n);
         }
 
+        /// <summary>시작 체력 = 최대 체력 x ratio (밸런스 1.4 initial_state.hp_ratio). Begin 전에만, 0 &lt; ratio &lt;= 1. 비전투 회복 규칙은 그대로.</summary>
+        public void SetStartHpRatio(double ratio)
+        {
+            if (_begun) throw new InvalidOperationException("SetStartHpRatio 는 판 시작 전에만");
+            if (!(ratio > 0.0 && ratio <= 1.0)) throw new ArgumentOutOfRangeException(nameof(ratio), "0 < ratio <= 1");
+            _p.Hp = _p.MaxHp * ratio;
+        }
+
         // ------------------------------------------------------------------ 관측
         Observation Observe()
         {

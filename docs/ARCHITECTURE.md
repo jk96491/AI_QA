@@ -16,7 +16,7 @@
    numpy, torch 금지·학습 코드 금지                        game_sim import 금지
 ```
 
-- **SDK (2026-11-23, `docs/SDK.md`)**: 게임 쪽 프로토콜 처리는 Game SDK 사본(`btqa_game/` / Unity `Packages/com.btqa.game`, 원본은 별도 레포)이 하고, 게임은 `EpisodeHost`(정의서·판 실행)만 구현한다.
+- **SDK (2026-11-23, `docs/SDK.md`)**: 게임 쪽 프로토콜 처리는 Game SDK(Python `btqa_game` = 별도 레포 btqa_sdk 직접 참조 / Unity `Packages/com.btqa.game` 사본)가 하고, 게임은 `EpisodeHost`(정의서·판 실행)만 구현한다.
   **학습 대상 = 게임이 `classes[].blocks` 로 선언한 블록 가중치뿐** (`ClassInfo.learnable_space()`, CMA-ES·IMPALA 공통).
 - **게임 쪽**은 BT 와 전투, 직업·스킬·보스 수치를 가진다. 학습 쪽에는 **정의서(파라미터 이름·범위·기본값)** 만 공개한다.
 - **학습 쪽**은 파라미터 숫자를 정해 보내고 결과를 받는다. 스킬·스탯을 모른다.

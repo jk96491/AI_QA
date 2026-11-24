@@ -85,12 +85,12 @@ namespace Qa.Presentation
                 var face = noRes || p.Dead ? new Color(0.35f, 0.35f, 0.38f, 0.9f) : new Color(rc.r * 0.55f, rc.g * 0.55f, rc.b * 0.55f, 0.95f);
                 Fill(new Rect(rr.x + 3, rr.y + 3, rr.width - 6, rr.height - 6), face);
                 GUI.Label(new Rect(rr.x + 4, rr.y + 2, 20, 16), (i + 1).ToString(), _small);
-                GUI.Label(new Rect(rr.x, rr.y + 16, rr.width, 22), "<b>" + Short(Names.Skill(s.Name)) + "</b>", _center);
+                GUI.Label(new Rect(r.x - gap / 2, r.yMax + 2, r.width + gap, 18), Short(Names.Skill(s.Name)), SmallCenter);   // H4: 이름은 슬롯 아래 (쿨 숫자와 분리)
                 if (cooling)
                 {
                     float frac = (float)(cd / Math.Max(0.01, s.Cooldown));
                     Fill(new Rect(rr.x + 3, rr.y + 3, rr.width - 6, (rr.height - 6) * frac), new Color(0f, 0f, 0f, 0.62f));
-                    GUI.Label(new Rect(rr.x, rr.y + 30, rr.width, 22), "<b>" + (cd >= 1 ? Math.Ceiling(cd).ToString("0") : cd.ToString("0.0")) + "</b>", _center);
+                    GUI.Label(new Rect(rr.x, rr.y + 16, rr.width, 22), "<b>" + (cd >= 1 ? Math.Ceiling(cd).ToString("0") : cd.ToString("0.0")) + "</b>", _center);
                 }
                 if (s.Cost > 0)
                     GUI.Label(new Rect(rr.x, rr.yMax - 17, rr.width - 4, 16), "<color=" + (noRes ? "#FF5050" : "#C8C8C8") + ">" + s.Cost.ToString("0") + "</color>", _small);
@@ -119,17 +119,20 @@ namespace Qa.Presentation
             Fill(rr, new Color(0.06f, 0.07f, 0.09f, 0.88f));
             Fill(new Rect(rr.x + 3, rr.y + 3, rr.width - 6, rr.height - 6), p.Potions > 0 ? new Color(0.15f, 0.45f, 0.2f, 0.95f) : new Color(0.3f, 0.3f, 0.32f, 0.9f));
             GUI.Label(new Rect(rr.x + 4, rr.y + 2, 20, 16), key.ToString(), _small);
-            GUI.Label(new Rect(rr.x, rr.y + 16, rr.width, 22), "<b>물약</b>", _center);
+            GUI.Label(new Rect(r.x - 3, r.yMax + 2, r.width + 6, 18), "물약", SmallCenter);
             GUI.Label(new Rect(rr.x, rr.yMax - 18, rr.width - 4, 16), "x" + p.Potions, _small);
             if (p.PotionCd > 1e-6)
             {
                 float frac = (float)(p.PotionCd / Math.Max(0.01, _spec.Stats.PotionCooldown));
                 Fill(new Rect(rr.x + 3, rr.y + 3, rr.width - 6, (rr.height - 6) * frac), new Color(0f, 0f, 0f, 0.62f));
-                GUI.Label(new Rect(rr.x, rr.y + 30, rr.width, 22), "<b>" + Math.Ceiling(p.PotionCd).ToString("0") + "</b>", _center);
+                GUI.Label(new Rect(rr.x, rr.y + 16, rr.width, 22), "<b>" + Math.Ceiling(p.PotionCd).ToString("0") + "</b>", _center);
             }
             if (pressed) Border(rr, Color.white, 2f);
         }
 
         static string Short(string s) => s.Length > 4 ? s.Substring(0, 4) : s;
+
+        GUIStyle _smallCenter;
+        GUIStyle SmallCenter => _smallCenter ?? (_smallCenter = new GUIStyle(_small) { alignment = TextAnchor.MiddleCenter, clipping = TextClipping.Overflow });
     }
 }

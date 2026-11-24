@@ -3,8 +3,9 @@
 - game_sim 은 balance_qa, torch 를 import 하지 않는다 (Unity 로 교체될 쪽)
 - balance_qa 는 game_sim 을 import 하지 않는다 (프로세스·포트로만 연결)
 - play_agent 는 game_sim · balance_qa · torch 를 import 하지 않는다 (학습 결과 파일만 읽고 게임과는 TCP 로만)
-- btqa_game(게임 쪽 SDK 사본) 은 어떤 게임·학습 코드도 import 하지 않는다 (게임이 가져다 쓰는 쪽)
-- 학습 쪽(balance_qa, play_agent) 은 게임 쪽 SDK 도 import 하지 않는다 (계약은 프로토콜 문서뿐)
+- SDK(btqa_game·btqa_play)는 별도 레포 btqa_sdk 를 직접 참조한다 — SDK 자체의 독립성은 그 레포 테스트가 검사
+- 학습 쪽(balance_qa, play_agent) 은 게임 쪽 SDK 를 import 하지 않는다 (계약은 프로토콜 문서뿐).
+  play_agent 는 클라이언트 쪽 SDK btqa_play 위에 로드아웃·응답기를 얹는다
 """
 import ast
 import unittest
@@ -34,17 +35,13 @@ class IndependenceTest(unittest.TestCase):
         self.assertEqual(bad, [], "금지된 import 발견")
 
     def test_game_does_not_import_learner_or_torch(self):
-        self.assert_no_import("game_sim", ["balance_qa", "torch"])
+        self.assert_no_import("game_sim", ["balance_qa", "torch", "btqa_play", "play_agent"])
 
     def test_learner_does_not_import_game(self):
-        self.assert_no_import("balance_qa", ["game_sim", "btqa_game"])
+        self.assert_no_import("balance_qa", ["game_sim", "btqa_game", "btqa_play", "play_agent"])
 
     def test_play_agent_imports_only_files_and_tcp(self):
         self.assert_no_import("play_agent", ["game_sim", "balance_qa", "torch", "btqa_game"])
-
-    def test_game_sdk_is_standalone(self):
-        # SDK 사본(btqa_game/, 원본은 별도 레포)은 이 저장소의 어떤 패키지도 모른다
-        self.assert_no_import("btqa_game", ["game_sim", "balance_qa", "play_agent", "torch", "numpy"])
 
 
 if __name__ == "__main__":

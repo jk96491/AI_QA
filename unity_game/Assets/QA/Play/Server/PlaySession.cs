@@ -505,6 +505,86 @@ namespace Qa.Play.Server
             return p.Length >= 2 ? p[0] + "." + p[1] : v;
         }
 
+        // ------------------------------------------------------------------ 행동·안내 선언 (play 0.3 선택 필드 4.2.1, 0.8.3)
+        // 게임이 정본: 학습 쪽 외부 스펙(play_agent/specs/qa_arena.play.json)보다 우선. schema.properties 키 = args 키.
+        // 작성 규칙: 플레이어가 게임 안에서 알 수 있는 것만 (숨은 좌표·데이터·의도적 QA 함정은 쓰지 않는다).
+        static JObject Act(string name, JObject args, string desc, JObject props, params string[] required) => new JObject
+        {
+            ["name"] = name, ["args"] = args, ["description"] = desc,
+            ["schema"] = new JObject { ["type"] = "object", ["properties"] = props, ["required"] = new JArray(required) },
+        };
+        static JObject Prop(string type, string desc) => new JObject { ["type"] = type, ["description"] = desc };
+
+        JArray DeclaredActions()
+        {
+            string range = _data.Limits.InteractRange.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            string maxSec = _data.Limits.MaxActionSeconds.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            return new JArray
+            {
+                Act("move_to", new JObject { ["target"] = "entity_id | null", ["pos"] = "[x,y,z] | null" },
+                    "엔티티(target) 또는 좌표(pos=[x,y,z]) 로 걸어간다. 둘 중 하나만 준다. 대상의 상호작용 거리(" + range + ") 안에 들어가면 done. " +
+                    "시야 밖 대상은 not_visible — 근처 좌표나 지역 입구로 먼저 간다. 길이 없으면 unreachable, 창(modal)이 열려 있으면 blocked_by_modal. " +
+                    "이동 중 적의 어그로 범위에 들어가면 전투가 자동으로 시작되고 학습된 BT 가 싸운다 (interrupted, 결과는 combats).",
+                    new JObject
+                    {
+                        ["target"] = Prop("string", "observation.entities[].id"),
+                        ["pos"] = new JObject { ["type"] = "array", ["items"] = new JObject { ["type"] = "number" }, ["description"] = "[x,y,z] 월드 좌표" },
+                    }),
+                Act("interact", new JObject { ["target"] = "entity_id", ["verb"] = "talk|pickup|open|enter" },
+                    "엔티티와 상호작용. verb 는 그 엔티티 actions 에 있는 것 (talk 대화, pickup 줍기, open 열기, enter 지역 입구로 이동). " +
+                    "범위 밖이면 자동으로 다가가지 않고 out_of_range — 먼저 move_to. 엔티티가 지원하지 않는 verb 는 not_interactable, 지금 할 수 없으면 invalid_state, 창이 열려 있으면 blocked_by_modal.",
+                    new JObject
+                    {
+                        ["target"] = Prop("string", "observation.entities[].id"),
+                        ["verb"] = new JObject { ["type"] = "string", ["enum"] = new JArray("talk", "pickup", "open", "enter") },
+                    }, "target", "verb"),
+                Act("ui_click", new JObject { ["ui_id"] = "string" },
+                    "화면 UI 요소를 클릭 (screen.ui 의 id, 또는 hierarchy 노드 id). interactable:false 면 not_interactable — " +
+                    "reason_detail 'blocked by <id>' 는 그 창이 가리고 있다는 뜻, 'disabled' 는 비활성.",
+                    new JObject { ["ui_id"] = Prop("string", "screen.ui[].id") }, "ui_id"),
+                Act("use_item", new JObject { ["item_id"] = "string" },
+                    "인벤토리 아이템을 필드에서 사용 (inventory 의 id). 효과가 없는 상태(체력 가득에서 물약 등)나 쓸 수 없는 아이템이면 invalid_state, 창이 열려 있으면 blocked_by_modal. " +
+                    "전투 중 물약은 BT 가 퀵슬롯 물약을 쓴다 — 이 행동이 아니다.",
+                    new JObject { ["item_id"] = Prop("string", "observation.inventory[].id") }, "item_id"),
+                Act("engage", new JObject { ["target"] = "entity_id" },
+                    "적에게 다가가 일부러 전투를 시작한다. 전투는 학습된 BT 가 하고, 끝나면 done (승패는 combats[].cleared). " +
+                    "적이 아니면 not_interactable. 지면 체크포인트(없으면 지역 시작점)에서 부활하고 적은 남는다.",
+                    new JObject { ["target"] = Prop("string", "role=enemy 엔티티 id") }, "target"),
+                Act("wait", new JObject { ["seconds"] = "number | null", ["until"] = "event_kind | null" },
+                    "세계 시간을 보낸다: seconds 초, 또는 until 사건이 일어날 때까지 중 먼저 (최대 " + maxSec + "초, 넘으면 timeout). 둘 중 하나는 준다.",
+                    new JObject
+                    {
+                        ["seconds"] = Prop("number", "초 (0~" + maxSec + ")"),
+                        ["until"] = Prop("string", "세계 사건 종류 = events[].kind (예: dialog_closed, quest_progress, quest_completed, combat_ended, item_added)"),
+                    }),
+            };
+        }
+
+        static JObject PilotGuide() => new JObject
+        {
+            ["about"] = "QaArena: 마을과 숲으로 된 튜토리얼 RPG. 촌장의 의뢰로 시작해 숲의 늑대왕을 쓰러뜨린다.",
+            ["system_prompt"] =
+                "이 게임의 비전투 부분(이동·대화·퀘스트·아이템·UI)을 플레이한다.\n\n" +
+                "관찰:\n" +
+                "- player: 지역·위치·체력·골드·퀵슬롯·상태\n" +
+                "- quests: 진행 중인 퀘스트와 목표 (progress [현재, 목표], hint_targets = 관련 엔티티 id). state=ready 는 반납만 남은 것\n" +
+                "- entities: 지금 보이는 것만 (시야 밖은 없다). marker: quest_available / quest_turn_in / objective\n" +
+                "- screen.modal: 입력을 막는 창 (dialog / quests / inventory / shop / tip). screen.ui: 클릭 가능한 UI 요소 (interactable)\n" +
+                "- events: 직전 이후 일어난 일 (wait.until 에 쓰는 kind)\n\n" +
+                "규칙:\n" +
+                "- 상호작용은 먼저 move_to 로 다가간 뒤 interact. 보이지 않는 대상은 근처 좌표나 지역 입구로 먼저 간다.\n" +
+                "- 창(modal)이 열려 있으면 그 창의 버튼으로 진행하거나 닫는다. interactable:false 버튼은 가려졌거나 비활성이다 — 가린 창부터 처리한다.\n" +
+                "- 적에게 다가가거나 engage 하면 학습된 전투 AI 가 싸운다. 지면 체크포인트에서 부활하니 다시 시도할 수 있다.\n" +
+                "- 게임 버그로 보이는 것은 finish 의 blocked 에 UI id·메시지를 포함해 적는다.",
+            ["rules"] = new JArray(
+                "전투에는 퀵슬롯에 등록한 물약만 가져간다 (보유 수와 직업 한도 중 작은 쪽). 퀵슬롯이 비어 있으면 물약 없이 싸운다.",
+                "퀵슬롯 등록은 인벤토리 창에서 한다. 물약이 모자라면 상인에게 대화로 상점을 열어 산다.",
+                "다른 지역으로 가려면 지역 입구 엔티티에 interact(enter) 한다. 숲 입구는 마을 북쪽 끝에 있다.",
+                "진행 중인 퀘스트의 목표는 관찰 quests 또는 퀘스트 창에서 확인한다. 반납만 남은 퀘스트(state=ready)는 marker quest_turn_in 이 붙은 NPC 에게 말을 건다.",
+                "전투에서 지면 근처 체크포인트에서 부활하고 적과 퀘스트는 그대로 남는다 — 물약을 채워 다시 도전한다."),
+            ["default_goal"] = "튜토리얼 퀘스트를 모두 끝까지 완료하라 (진행 중인 퀘스트가 없어질 때까지).",
+        };
+
         JObject Describe()
         {
             var bosses = new JArray();
@@ -516,15 +596,7 @@ namespace Qa.Play.Server
                 scenarios.Add(new JObject { ["name"] = s.Name, ["boss"] = b });
                 if (seen.Add(b)) bosses.Add(new JObject { ["name"] = b, ["display_name"] = b });
             }
-            var actions = new JArray
-            {
-                new JObject { ["name"] = "move_to", ["args"] = new JObject { ["target"] = "entity_id | null", ["pos"] = "[x,y,z] | null" } },
-                new JObject { ["name"] = "interact", ["args"] = new JObject { ["target"] = "entity_id", ["verb"] = "talk|pickup|open|enter" } },
-                new JObject { ["name"] = "ui_click", ["args"] = new JObject { ["ui_id"] = "string" } },
-                new JObject { ["name"] = "use_item", ["args"] = new JObject { ["item_id"] = "string" } },
-                new JObject { ["name"] = "engage", ["args"] = new JObject { ["target"] = "entity_id" } },
-                new JObject { ["name"] = "wait", ["args"] = new JObject { ["seconds"] = "number | null", ["until"] = "event_kind | null" } },
-            };
+            var actions = DeclaredActions();   // 0.8.3: description·schema (play 0.3 선택 필드 4.2.1), args 는 그대로
             return new JObject
             {
                 ["type"] = PP.Description,
@@ -533,6 +605,8 @@ namespace Qa.Play.Server
                 ["bosses"] = bosses,
                 ["scenarios"] = scenarios,
                 ["actions"] = actions,
+                ["pilot_guide"] = PilotGuide(),
+                ["progress_keys"] = new JArray("quests", "player.zone", "inventory", "player.gold", "player.quickslots"),
                 ["limits"] = new JObject { ["max_action_seconds"] = _data.Limits.MaxActionSeconds, ["interact_range"] = _data.Limits.InteractRange },
                 ["observation_modes"] = new JArray("semantic", "hierarchy"),
                 ["debug"] = new JObject { ["omniscient"] = _opt.Omniscient },

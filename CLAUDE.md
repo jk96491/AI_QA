@@ -3,17 +3,17 @@
 원문 제안서 `밸런스 QA를 위한 BT 파라미터 최적화 프로세스.pdf`의 주장을 검증한다.
 **새 세션은 `docs/STATUS.md`(현재 상태·결정 대기·빌드별 측정 이력·다음 할 일)부터 읽는다.** 작업이 끝나면 그 문서를 갱신한다.
 설계 `시뮬레이션_프로토타입_설계.md`, 구조 `docs/ARCHITECTURE.md`, **게임 연동 계약 `docs/PROTOCOL.md`** (v1.4), **SDK `docs/SDK.md`** (사본·동기화 규칙; SDK 원본은 별도 레포).
-플레이 모드(LLM 비전투 + 학습 BT 전투) 계약 `docs/PLAY_PROTOCOL.md` v0.3 (밸런스 계약과 별개), 클라이언트 `play_agent/`.
+플레이 모드(LLM 비전투 + 학습 BT 전투) 계약 `docs/PLAY_PROTOCOL.md` v0.3 (밸런스 계약과 별개, **SDK 사본**), 클라이언트 = SDK `btqa_play` + `play_agent/`.
 
 ## 구조 (가장 중요)
 
 | 패키지 | 역할 | 금지 |
 |---|---|---|
-| `btqa_game/` | **BT-QA Game SDK 사본 (Python)** — 원본은 별도 GitHub 레포 `btqa_sdk`. 서버·세션·정의서 선언·검증·적합성 검사 `python -m btqa_game check`·예제 게임. Unity 사본 `unity_game/Packages/com.btqa.game`, 계약 사본 `docs/PROTOCOL.md`. **사본은 직접 고치지 않는다** — 원본 수정 후 `run/run_sync_sdk.py`. 이 저장소 기준 개요 `docs/SDK.md` | 이 저장소의 다른 패키지 import, `torch`·`numpy` |
+| `btqa_sdk/` | **BT-QA SDK (별도 GitHub 레포, 이 저장소 안에 clone, git 제외)** — Python 은 **사본 없이 직접 참조** (venv 편집 설치 `pip install --no-deps --no-build-isolation -e ./btqa_sdk`, 사용자 결정 2026-11-24). `btqa_game`(게임 쪽: 서버·세션·정의서 선언·검증·`python -m btqa_game check`·예제 게임) + `btqa_play`(플레이 모드 LLM 클라이언트: PlayClient·LLM 도구·프롬프트·LlmPilot·PilotRelay·LLM 백엔드·`python -m btqa_play tools`). Unity 사본 `unity_game/Packages/com.btqa.game`·계약 사본 `docs/PROTOCOL.md`·`docs/PLAY_PROTOCOL.md` 만 `run/run_sync_sdk.py` 로 복사. 개요 `docs/SDK.md` | SDK 안에서 이 저장소 패키지 import, `torch`·`numpy` |
 | `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터. 서버는 SDK `btqa_game` 으로 구현 (`GameSimHost`). 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
 | `balance_qa/` | **학습 플랫폼** (SDK 를 쓰는 쪽, 계약만 따름): 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim`, `btqa_game` import |
 | `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.4) | — |
-| `play_agent/` | **플레이 모드 클라이언트**: PlayClient·LoadoutBuilder·CombatResponder(IMPALA numpy)·LlmPilot(LLM 백엔드 `play_agent/llm/`, 각자 고른 LLM)·PilotRelay(대화형 에이전트가 직접)·check-play. 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch` import |
+| `play_agent/` | **플레이 모드 클라이언트 (AI_QA 쪽)**: SDK `btqa_play` 위에 LoadoutBuilder·CombatResponder/BanditPolicy(IMPALA numpy)·relay/CLI·check-play(QaArena). 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch`, `btqa_game` import |
 | `unity_game/` | **실제 테스트 게임 (Unity 프로젝트, 다른 에이전트가 제작 중)**. 제작 규칙 `unity_game/AGENT_GUIDE.md` | 학습 쪽 코드에서 import·경로 의존 금지 (`--game` / `--game-cmd` 로만 연결) |
 
 - `game_sim/` 은 Unity 게임이 생긴 뒤에도 **참조 구현 + 테스트용 가짜 게임**으로 유지한다 (사용자 결정). 지우지 않는다.
@@ -21,7 +21,8 @@
 - 두 패키지는 프로세스·포트로만 연결된다. `tests/test_independence.py` 가 import 를 검사한다.
 - 게임 데이터(`game_sim/data/`)는 학습 쪽이 직접 읽지 않는다. `describe` 응답으로만 받는다.
 - 페르소나(`qa_specs/personas.json`)는 퍼블리셔 쪽 정의라 학습 쪽에 있다.
-- 프로토콜을 바꾸면: `docs/PROTOCOL.md` → **SDK 원본 레포** (Python `python/btqa_game` + Unity `unity/com.btqa.game/Runtime` + `btqa_game.conformance` 같이, `CHANGELOG.md`) → `run/run_sync_sdk.py` 로 사본 갱신 → `game_sim/server/*` → `balance_qa/game_api/*` → `ConformanceChecker` 순서로 모두 맞추고 버전 규칙(PROTOCOL 8장)을 지킨다. Unity 게임 쪽 변경은 `unity_game/SDK_MIGRATION.md` 같은 기록으로 Unity 에이전트에게 남긴다.
+- 플레이 프로토콜·LLM 도구·루프를 바꾸면: `btqa_sdk/docs/PLAY_PROTOCOL.md` + `btqa_sdk/python/btqa_play` (+ `tests/test_play.py`, `CHANGELOG.md`) → `run/run_sync_sdk.py`(문서 사본) → `play_agent` → Unity 요청서. **SDK 에 게임 내용(행동 설명·장르 개념·목표)을 넣지 않는다** (사용자 결정 2026-11-24). 게임 고유 도구 설명·안내·진척 기준은 게임이 `play_description.actions[].description/schema`·`pilot_guide`·`progress_keys` 로 선언하고 (4.2.1), 선언 전에는 같은 형식의 외부 스펙 `play_agent/specs/qa_arena.play.json` (`btqa-play-spec/1`) 이 채운다.
+- 프로토콜을 바꾸면: `docs/PROTOCOL.md` → **SDK 원본 레포** (Python `python/btqa_game` + Unity `unity/com.btqa.game/Runtime` + `btqa_game.conformance` 같이, `CHANGELOG.md`) → `run/run_sync_sdk.py` 로 Unity·문서 사본 갱신 (Python 은 편집 설치라 바로 반영) → `game_sim/server/*` → `balance_qa/game_api/*` → `ConformanceChecker` 순서로 모두 맞추고 버전 규칙(PROTOCOL 8장)을 지킨다. Unity 게임 쪽 변경은 `unity_game/SDK_MIGRATION.md` 같은 기록으로 Unity 에이전트에게 남긴다.
 
 ## 환경 제약
 
@@ -32,8 +33,8 @@
   - torch 1.8 API: `torch.inference_mode` 없음 → `torch.no_grad()`. `torch.linalg.eigh/norm`, `torch.outer` 사용 가능.
 - **학습 부분은 PyTorch CPU**: `balance_qa/optim/*`, `balance_qa/policy/mlp.py`, `balance_qa/rl/*` (IMPALA). 장치·dtype 은 `balance_qa/backend.py` (DEVICE=cpu, 최적화기 float64, 정책 float32). `.cuda()` 금지.
 - 게임 쪽 BT·시뮬레이터는 numpy/순수 파이썬.
-- 플레이 모드 LLM 은 **사용자가 각자 고른다** (`docs/LLM_SETUP.md`, 설정 `llm.json` — git 제외, 예시 `play_agent/llm.example.json`). 저장소에 키·특정 LLM 을 박지 않는다. 키는 환경변수 이름(`api_key_env`)만.
-  - `openai`(OpenAI 호환: 로컬 Ollama·LM Studio 등) 백엔드는 표준 라이브러리만 → 3.8 venv 그대로. `anthropic`(Claude API) 만 anthropic SDK(Python ≥3.10) 별도 venv(`venv_play`), SDK 는 `AnthropicBackend` 안에서만 import.
+- 플레이 모드 LLM 은 **사용자가 각자 고른다** (`docs/LLM_SETUP.md`, 설정 `llm.json` — git 제외, 예시 `btqa_sdk/python/btqa_play/llm.example.json`). 저장소에 키·특정 LLM 을 박지 않는다. 키는 환경변수 이름(`api_key_env`)만.
+  - `openai`(OpenAI 호환: 로컬 Ollama·LM Studio 등) 백엔드는 표준 라이브러리만 → 3.8 venv 그대로. `anthropic`(Claude API) 만 anthropic SDK(Python ≥3.10) 별도 venv(`venv_play` — 지금은 없음, 쓸 때 만들고 `pip install -e ./btqa_sdk`), SDK 는 `AnthropicBackend` 안에서만 import.
   - 이 사용자는 API 추가 과금을 원하지 않는다 → 직접 플레이할 땐 `relay`/`step` (Claude Code 세션이 플레이어).
 - 정의서·데이터는 **JSON**.
 - Windows 콘솔 한글: 진입점에서 `sys.stdout.reconfigure(encoding="utf-8")` (cli, game_sim `__main__`, experiments/common 에 있음).
@@ -42,7 +43,7 @@
 
 ```bash
 python -m unittest discover -s tests -t .              # 전체 테스트 (game / learner / integration / independence)
-venv\Scripts\python.exe run/run_sync_sdk.py [--check] [--sdk <SDK 레포 경로>]   # SDK 원본 → 사본 (btqa_game/·Unity 패키지·docs/PROTOCOL.md)
+venv\Scripts\python.exe run/run_sync_sdk.py [--check] [--sdk <SDK 레포 경로>]   # SDK → 사본 (Unity 패키지·docs/PROTOCOL.md·docs/PLAY_PROTOCOL.md). Python 은 btqa_sdk 직접 참조
 python -m btqa_game check --game 127.0.0.1:7777        # SDK 적합성 검사 (torch 없이, check-game 과 같은 항목)
 python -m game_sim validate                             # 게임 데이터 검사
 python -m game_sim serve --port 7777                    # 게임 대역 서버 단독 실행
@@ -55,6 +56,7 @@ python -m balance_qa --workers 8 impala   --cls warrior --persona stable --budge
 python -m balance_qa --workers 8 bandit   --combos warrior:forest_wolf_king mage:forest_wolf_king --persona stable --budget 8000 --levels potions_ratio=0,0.333,0.667,1   # IMPALA 컨텍스트 밴딧
 python -m balance_qa --game 127.0.0.1:7777,127.0.0.1:7778 optimize ...       # 이미 떠 있는 게임(Unity)
 python -m balance_qa --workers 8 --game-cmd "Game.exe -batchmode -qaPort {port}" optimize ...
+python -m play_agent tools --game 127.0.0.1:7800 [--spec none]   # 게임 선언 + QaArena 스펙 → LLM 도구 출처·프롬프트·선언 검사 (SDK: python -m btqa_play tools|spec)
 python -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]  # 플레이 모드 적합성 (LLM 없음)
 python -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run> --llm openai --model qwen2.5:14b   # 각자 LLM (또는 llm.json). --llm anthropic 은 Python ≥3.10 venv
 python -m play_agent relay --game 127.0.0.1:7800 --loadout reports/<run>  # Claude Code 세션이 플레이어 (API 없음): 이후 step <tool> '<json>' 로 한 행동씩, finish 로 저장

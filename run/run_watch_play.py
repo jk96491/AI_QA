@@ -110,7 +110,7 @@ def find_results(scenarios: List[str], game_version: str) -> List[Tuple[Path, st
 
 def main() -> int:
     setup()
-    from play_agent.client import PlayClient
+    from btqa_play.client import PlayClient
     from play_agent.loadout import LoadoutBuilder
 
     if not EXE.exists():

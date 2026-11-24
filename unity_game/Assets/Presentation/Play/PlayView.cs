@@ -293,6 +293,7 @@ namespace Qa.Presentation.Play
             }
 
             SyncLabels(w);
+            LayoutPilotPanel(w.Modal);
             _hudZone.text = w.ZoneDef.Label;
             _hudGold.text = "골드 " + w.Gold;
             for (int i = 0; i < _hudQuick.Length; i++)
@@ -429,6 +430,52 @@ namespace Qa.Presentation.Play
         }
 
         // ------------------------------------------------------------------ 플레이어 메모 (pilot_note)
+        // H1: "QA 플레이어" 패널 위치. 창이 없으면 왼쪽 아래, 대화창(아래쪽 42%)이면 왼쪽 위(HUD 아래),
+        // 인벤토리·상점·퀘스트 창(가운데)이면 왼쪽 가장자리 좁은 세로 띠 (상점 창 왼쪽 끝 15% = 192px 안쪽).
+        string _pilotLayout;
+        RectTransform _logRt;   // 관람용 행동 로그 (왼쪽 가운데) — 패널 자리에 맞춰 줄이거나 숨긴다
+        void LayoutPilotPanel(string modal)
+        {
+            if (_pilotPanel == null) return;
+            string mode = modal == null ? "bottom" : modal == "dialog" ? "top" : "strip";
+            if (mode == _pilotLayout) return;
+            _pilotLayout = mode;
+            var rt = (RectTransform)_pilotPanel.transform;
+            float lineH;
+            int lines;
+            switch (mode)
+            {
+                case "top":
+                    rt.anchorMin = new Vector2(0, 1); rt.anchorMax = new Vector2(0, 1);
+                    rt.offsetMin = new Vector2(12, -64 - 184); rt.offsetMax = new Vector2(452, -64);
+                    lineH = 40; lines = 2;
+                    break;
+                case "strip":
+                    rt.anchorMin = new Vector2(0, 0); rt.anchorMax = new Vector2(0, 1);
+                    rt.offsetMin = new Vector2(8, 12); rt.offsetMax = new Vector2(186, -64);
+                    lineH = 140; lines = 7;
+                    break;
+                default:
+                    rt.anchorMin = new Vector2(0, 0); rt.anchorMax = new Vector2(0, 0);
+                    rt.offsetMin = new Vector2(12, 12); rt.offsetMax = new Vector2(452, 196);
+                    lineH = 40; lines = 2;
+                    break;
+            }
+            if (_logRt != null)
+            {
+                _logRt.gameObject.SetActive(mode != "strip");                        // 가운데 창이 열려 있으면 숨김 (세로 띠와 겹침)
+                _logRt.anchorMax = new Vector2(0.35f, mode == "top" ? 0.64f : 0.75f); // 대화 중: 왼쪽 위 패널(0.655~) 아래까지만
+            }
+            for (int i = 0; i < PilotLines; i++)
+            {
+                var lt = (RectTransform)_pilotLine[i].transform;
+                float top = -26 - i * lineH;
+                lt.offsetMin = new Vector2(12, top - lineH);
+                lt.offsetMax = new Vector2(-12, top);
+                _pilotLine[i].maxVisibleLines = lines;
+            }
+        }
+
         public void ShowPilotNote(string kind, string text)
         {
             if (_pilotRoot == null) BuildPilotUi();
@@ -688,6 +735,7 @@ namespace Qa.Presentation.Play
 
             // 관람용 행동 로그 (관찰 제외)
             var lg = Rect("ActionLog", _uiRoot, new Vector2(0, 0.45f), new Vector2(0.35f, 0.75f), new Vector2(12, 0), Vector2.zero);
+            _logRt = lg;
             lg.gameObject.AddComponent<QaIgnore>();
             _log = Text("Lines", lg, "", 16, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, null);
             _log.raycastTarget = false;

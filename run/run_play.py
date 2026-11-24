@@ -1,6 +1,6 @@
 """[PyCharm ▶] 각자 고른 LLM 으로 튜토리얼 플레이 (docs/LLM_SETUP.md, PLAY_PROTOCOL 5장).
 
-LLM 은 저장소 루트의 llm.json (git 에 안 올라감, 예시 play_agent/llm.example.json) 또는 아래 LLM·MODEL 로 고른다.
+LLM 은 저장소 루트의 llm.json (git 에 안 올라감, 예시 btqa_sdk/python/btqa_play/llm.example.json) 또는 아래 LLM·MODEL 로 고른다.
   - "openai"    : OpenAI 호환 — 로컬 Ollama·LM Studio·llama.cpp·vLLM 또는 호환 클라우드. 이 venv(3.8) 그대로
   - "anthropic" : Claude API — Python ≥ 3.10 + anthropic venv(venv_play) 에서 실행해야 함, 키 = 환경변수 ANTHROPIC_API_KEY
 API 를 쓰지 않으려면 이 스크립트 대신 `python -m play_agent relay` (Claude Code 같은 대화형 에이전트가 직접 플레이).

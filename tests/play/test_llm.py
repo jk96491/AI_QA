@@ -7,11 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from play_agent.client import PlayClient
-from play_agent.llm import load_config, make_backend
-from play_agent.llm.base import STOP_TOOL_USE, ToolResult
-from play_agent.llm.openai_compat import OpenAICompatBackend
-from play_agent.pilot import LlmPilot, PilotConfig
+from btqa_play.client import PlayClient
+from btqa_play.llm import load_config, make_backend
+from btqa_play.llm.base import STOP_TOOL_USE, ToolResult
+from btqa_play.llm.openai_compat import OpenAICompatBackend
+from btqa_play.pilot import LlmPilot, PilotConfig
 from tests.play.test_client import OBS, FakeGame, play_handler
 
 
@@ -88,7 +88,7 @@ class ConfigTest(unittest.TestCase):
             make_backend({"llm": "openai"})       # openai 는 model 필수
 
     def test_example_file_is_valid(self):
-        cfg = load_config("play_agent/llm.example.json")
+        cfg = load_config("btqa_sdk/python/btqa_play/llm.example.json")
         self.assertEqual(make_backend(cfg).label, "openai:qwen2.5:14b@http://localhost:11434/v1")
 
 

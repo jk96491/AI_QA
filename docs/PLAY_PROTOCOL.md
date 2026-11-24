@@ -1,6 +1,8 @@
 # 플레이 모드 프로토콜 v0.3 — LLM 비전투 플레이 + 학습된 BT 전투
 
 > 상태: **v0.3** (2026-11-23) = v0.2 + 플레이어 생각 메모 `pilot_note`(4.10). 요청 `unity_game/PLAY_PROTOCOL_0.3_REQUEST.md`.
+> **원본 = BT-QA SDK 레포 `docs/PLAY_PROTOCOL.md`** (SDK 0.3.0, 2026-11-24). 클라이언트 쪽 구현 = SDK `btqa_play` (5장). 게임 쪽(서버)은 게임이 직접 구현한다.
+> 2026-11-24 추가 (선택 필드, 버전 0.3 유지 — 7장): 행동 선언 `actions[].description`·`actions[].schema`, 게임 안내 `pilot_guide`, 진척 기준 `progress_keys` (4.2.1). 선언하지 않으면 클라이언트가 같은 형식의 외부 스펙 파일로 채운다 (SDK 에는 게임 내용이 없다).
 > v0.2 (2026-11-23): v0.1 초안을 Unity QaArena **0.6.2** 구현(`unity_game/PLAY_MODE_REPORT.md` 2장)에 맞춰 확정했다.
 > 0.6.2 가 아직 따르지 않는 항목은 **[0.6.2 미반영]** 으로 표시하고 `unity_game/PLAY_PROTOCOL_0.2_FOLLOWUP.md` 로 요청했다.
 > 밸런스 QA 계약(`PROTOCOL.md` v1.2)과는 **별개의 계약**이다. Unity 작업 목록 `unity_game/PLAY_MODE_REQUEST.md`(반영됨).
@@ -123,6 +125,57 @@
 | `debug.omniscient` | `-qaPlayOmniscient` 로 켰을 때만 true |
 | `stage` | 구현 단계 표시(정보용). 클라이언트는 해석하지 않는다 |
 | `pilot_notes` | (v0.3) 게임이 `pilot_note`(4.10)를 화면에 표시할 수 있을 때만 넣는다. 없으면 클라이언트는 보내지 않는다 |
+| `actions[].description`, `actions[].schema` | (선택, 2026-11-24) LLM 도구 설명·인자 JSON Schema — 4.2.1 |
+| `pilot_guide` | (선택, 2026-11-24) LLM 플레이어에게 줄 게임 안내 — 4.2.1 |
+| `progress_keys` | (선택, 2026-11-24) LLM 진척 판단에 볼 관찰 경로 — 4.2.1 |
+
+#### 4.2.1 LLM 도구·안내 선언 (선택 필드)
+
+클라이언트(SDK `btqa_play`)는 `actions` 로 LLM 도구를 만든다. **SDK 는 행동 설명·인자 의미·게임 안내를 하나도 들고 있지 않다.** 출처는 키마다 다음 순서다:
+
+1. **게임 선언** — 아래 필드 (이 게임의 정본)
+2. **외부 플레이 스펙** — 쓰는 쪽이 넘기는 같은 형식의 JSON 파일 (`btqa-play-spec/1`, `PLAY_SDK.md` 2장). 게임이 아직 선언하지 않을 때 쓴다
+3. **일반형** — `args` 이름마다 nullable 문자열, 설명 = 이름. 검사(`python -m btqa_play tools`)가 경고한다
+
+→ 게임은 이 필드를 선언하는 것이 원칙이다. 선언하면 외부 스펙 없이 어떤 클라이언트든 같은 도구를 쓴다.
+
+```json
+"actions": [
+  {"name": "move_to", "args": {"target": "entity_id | null", "pos": "[x,y,z] | null"},
+   "description": "엔티티(target) 또는 좌표(pos) 로 걸어간다. 둘 중 하나만. 이동 중 어그로 범위에 들면 전투가 자동 시작되고 학습된 BT 가 싸운다.",
+   "schema": {"type": "object",
+              "properties": {"target": {"type": "string", "description": "entities[].id"},
+                             "pos": {"type": "array", "items": {"type": "number"}, "description": "[x,y,z]"}},
+              "required": []}},
+  {"name": "interact", "args": {"target": "entity_id", "verb": "talk|pickup|open|enter"},
+   "description": "엔티티와 상호작용. 범위 밖이면 out_of_range — 먼저 move_to.",
+   "schema": {"type": "object",
+              "properties": {"target": {"type": "string"}, "verb": {"type": "string", "enum": ["talk", "pickup", "open", "enter"]}},
+              "required": ["target", "verb"]}}
+],
+"pilot_guide": {
+  "about": "마을과 숲으로 된 튜토리얼 RPG. 촌장에게서 퀘스트를 받아 숲의 늑대왕을 잡는다.",
+  "rules": ["경비병은 마을 남동쪽 문 앞에 있다", "상점 구매 전 골드를 확인한다"],
+  "default_goal": "튜토리얼 퀘스트를 모두 끝까지 완료하라 (진행 중인 퀘스트가 없어질 때까지).",
+  "system_prompt": "관찰 필드를 읽는 법, 이 게임에서 지켜야 할 큰 규칙 (여러 줄 문단)"
+},
+"progress_keys": ["quests", "player.zone", "inventory", "player.gold", "player.quickslots"]
+```
+
+| 필드 | 규칙 |
+|---|---|
+| `description` | 비어 있지 않은 문자열. LLM 이 읽는 도구 설명 — 언제 쓰는지, 실패 `reason` 이 무엇을 뜻하는지 |
+| `schema` | JSON Schema `{"type":"object","properties":{...},"required":[...]}`. 속성 `type` 은 JSON Schema 타입(`string`·`number`·`integer`·`boolean`·`array`·`object`·`null`) 또는 `anyOf`/`enum`. **속성 이름 = `args` 키** (같은 집합). `required` 생략 = 모두 필수. 필수가 아닌 인자는 클라이언트가 null 허용으로 바꾸고, null 인자는 `act.args` 에서 뺀다 |
+| 이름 | `inspect_ui`·`finish` 는 클라이언트 메타 도구라 행동 이름으로 쓰지 않는다 |
+| `pilot_guide.about` | 게임 한 줄 소개 (문자열) |
+| `pilot_guide.system_prompt` | 관찰 필드를 읽는 법·이 게임의 큰 규칙 (문단). SDK 공통 규칙(도구 사용 방식만: 한 번에 하나, reason 읽기, 전투는 BT, finish) 바로 뒤에 붙는다 |
+| `pilot_guide.rules` | 이 게임만의 플레이 요령 (문자열 목록). `about` 과 함께 "<game> 안내:" 블록이 된다 |
+| `pilot_guide.default_goal` | 목표를 따로 주지 않았을 때 LLM 목표 (문자열) |
+| `progress_keys` | 진척 판단에 볼 관찰 경로 목록 (점 구분, 예 `player.zone`). 이 값들이 N 행동 동안 안 바뀌면 LLM 루프가 `no_progress` 로 멈춘다. 없으면 관찰 전체에서 매 행동 바뀌는 필드(`seq`·`game_time`·`events`·`entities`·`player.pos`)를 뺀 것 |
+| 그 밖의 키 | `pilot_guide` 에 다른 키 → 클라이언트 검사(`python -m btqa_play tools`)가 문제로 보고한다 |
+
+- 세션 동안 바꾸지 않는다 (LLM 프롬프트 캐시). 플레이어에게 보이지 않는 정보(숨은 좌표 등)를 `rules` 에 넣지 않는다 — 원칙 "플레이어가 지각 가능한 것만" (1장). 사람 플레이어가 튜토리얼·도움말에서 알 수 있는 정도까지.
+- 확인: `python -m btqa_play tools --game HOST:PORT` → 행동마다 설명/스키마 출처(`game`·`sdk`·`generic`), 선언 검사, 완성된 시스템 프롬프트.
 
 ### 4.3 `set_loadout` → `loadout_ok`
 
@@ -319,25 +372,32 @@
 
 `pilot_note` 의 잘못된 `kind`·빈 `text` → `bad_request` (v0.3).
 
-## 5. 클라이언트(학습 플랫폼 쪽) — `play_agent/`
+## 5. 클라이언트 — SDK `btqa_play` (+ 쓰는 쪽 클라이언트)
 
-LLM 연결 방식 (사용자 결정 2026-11-22, 2026-11-23 갱신): **본체 = 직접 작성한 tool use 루프 `LlmPilot`, LLM 은 사용자가 각자 고른다** (`docs/LLM_SETUP.md`: `play_agent/llm/` 의 `LlmBackend` — Claude API / OpenAI 호환 로컬·클라우드). API 없이 대화형 에이전트가 직접 플레이하는 `relay` 도 있다. MCP 래퍼는 디버깅용 (선택, 아직 없음).
-이유: QA 는 같은 튜토리얼을 자동으로 여러 번 돌려 실패 지점을 통계로 보는 것 — 배치 실행, 전투 대기·막힘 감지·행동/비용 상한, `reports/` 로그를 코드로 제어해야 한다.
+LLM 연결 방식 (사용자 결정 2026-11-22, 2026-11-23 갱신): **본체 = 직접 작성한 tool use 루프 `LlmPilot`, LLM 은 사용자가 각자 고른다** (`LlmBackend` — Claude API / OpenAI 호환 로컬·클라우드). API 없이 대화형 에이전트가 직접 플레이하는 `relay` 도 있다. MCP 래퍼는 선택 (아직 없음).
+이유: QA 는 같은 튜토리얼을 자동으로 여러 번 돌려 실패 지점을 통계로 보는 것 — 배치 실행, 전투 대기·막힘 감지·행동/비용 상한, 로그를 코드로 제어해야 한다.
 
-- `play_agent/` 는 `game_sim`·`balance_qa`·`torch` 를 import 하지 않는다 (`tests/test_independence.py`). 학습 쪽 산출물 `params.json`·`policy.json` **파일만** 읽는다.
-- 인터프리터: `PlayClient`·`LoadoutBuilder`·`CombatResponder`·`check-play` 는 **표준 라이브러리 + numpy** 라 프로젝트 venv(3.8)에서도 돈다. `anthropic` 백엔드만 anthropic SDK(Python ≥ 3.10) 가 필요하다 → 별도 venv. `openai` 백엔드(로컬 LLM 포함)는 표준 라이브러리만.
+2026-11-24 부터 클라이언트 공통 부분은 **SDK `btqa_play`** (Python ≥ 3.8, 표준 라이브러리만; `anthropic` 백엔드만 anthropic SDK 를 그 안에서 import) 다. 학습 결과 형식에 묶인 부분(로드아웃·전투 응답기)은 SDK 밖, 쓰는 쪽 클라이언트(AI_QA 의 `play_agent`)에 있다.
 
-| 모듈 | 역할 |
+| SDK `btqa_play` | 역할 |
 |---|---|
-| `client.py: PlayClient` | 이 프로토콜 클라이언트. `act()` 는 `action_result` 까지 읽으며 전투 메시지를 모으고 `trigger` 는 응답기로 즉답 |
-| `loadout.py: LoadoutBuilder` | `reports/*/params.json`(CMA) / `policy.json`(IMPALA) → `set_loadout` 항목. 키 = (class, scenario). 게임 버전이 다르면 경고 |
-| `responder.py: BanditPolicy` | IMPALA 컨텍스트 밴딧 `policy.json`(`source.type = impala-bandit`) — (class, scenario, 시작 상태) → 가중치. 필드 전투에서는 **트리거 index 0 state**(`potions_ratio = carried / cap` 등)로 고르고 이후 트리거에는 `{}`. 로드아웃: 조합마다 항목, 경계 `[0.5]` (`docs/BANDIT_IMPALA_DESIGN.md`) |
-| `responder.py: CombatResponder` | `trigger` 에 즉답 (LLM 거치지 않음). IMPALA `policy.json` 의 `policy_theta` 를 **numpy 순전파**(Beta 평균, `mode: mean`). 학습 쪽 torch 순전파와 같은 출력인지 테스트로 고정 |
-| `llm/: LlmBackend` | LLM 확장 지점. `AnthropicBackend`(Claude API: `claude-opus-5-5`, `output_config.effort`, 프롬프트 캐싱, `tool_choice: auto` + `strict: true`) / `OpenAICompatBackend`(`/v1/chat/completions` function calling, urllib). 설정 `llm.json` + CLI |
-| `pilot.py: LlmPilot` | 백엔드와 무관한 수동 tool use 루프 (시스템 프롬프트·도구 고정, LLM 텍스트 → `pilot_note`). 전투는 도구 실행 안에서 끝나고 `combat_ended` 요약이 도구 결과에 들어간다. 행동 수·진척 없음·토큰 상한 |
-| `relay.py: PilotRelay` | 대화형 에이전트(Claude Code 세션)가 직접 플레이어 — API 호출 없음 (사용자 결정 2026-11-23: API 별도 과금 회피). `relay` 가 연결 유지, `step <tool> '<json>' --think "..."` 로 한 행동씩, `--think` 는 행동 전에 `pilot_note` |
-| `check.py` | `check-play`: 이 프로토콜 적합성 + 스크립트 튜토리얼 완주 (`unity_game/QaTools~/play_check.py` T2~T8 이식) |
+| `client.py: PlayClient` | 이 프로토콜 클라이언트. `act()` 는 `action_result` 까지 읽으며 전투 메시지를 모으고 `trigger` 는 응답기로 즉답. hello 0.3 → 0.2 → 0.1 |
+| `spec.py: PlaySpec` | 외부 플레이 스펙 (`btqa-play-spec/1`) 형식·검사·합치기 |
+| `tools.py: build_tools / GameTools` | `play_description.actions` → LLM 도구 (4.2.1: 게임 선언 → 외부 스펙 → 일반형), 도구 호출 실행. `validate_description` = 4.2.1 검사 |
+| `prompt.py: build_system_prompt` | SDK 공통 규칙(도구 사용 방식만) + `pilot_guide`(게임 → 스펙) + 클라이언트 추가 규칙 |
+| `llm/: LlmBackend` | LLM 확장 지점. `AnthropicBackend`(`output_config.effort`, 프롬프트 캐싱, strict 도구) / `OpenAICompatBackend`(`/v1/chat/completions`, urllib). 설정 `llm.json` + CLI, 키는 환경변수 이름만 |
+| `pilot.py: LlmPilot` | 백엔드와 무관한 수동 tool use 루프 (LLM 텍스트 → `pilot_note`). 전투는 도구 실행 안에서 끝나고 `combat_ended` 요약이 도구 결과에 들어간다. 행동 수·진척 없음·호출 상한 |
+| `relay.py: PilotRelay` | 대화형 에이전트가 직접 플레이어 (API 호출 없음). 확장 지점 `prepare(client, desc) → 응답기`, `run_meta()` |
+| `python -m btqa_play` | `tools`(선언 미리 보기·검사) / `play`(로드아웃 없이 LLM 플레이) / `relay` / `step` |
 
+| 쓰는 쪽 (AI_QA `play_agent/`) | 역할 |
+|---|---|
+| `loadout.py: LoadoutBuilder` | `reports/*/params.json`(CMA) / `policy.json`(IMPALA) → `set_loadout` 항목. 키 = (class, scenario) |
+| `responder.py: CombatResponder / BanditPolicy` | `trigger` 에 즉답 (LLM 거치지 않음). IMPALA 정책 numpy 순전파 |
+| `relay.py`, `__main__.py` | SDK `PilotRelay`·`LlmPilot` 에 로드아웃·응답기를 붙인 명령 (`play`·`relay`·`step`·`loadout`) |
+| `check.py` | `check-play`: 이 프로토콜 적합성 + QaArena 스크립트 튜토리얼 완주 + 4.2.1 선언 검사 |
+
+- 전투 응답기 = `trigger` 메시지 → `params`(부분 덮어쓰기, `None` = 바꾸지 않음) callable. `on_combat_started(msg)` 가 있으면 조우 시작 때 불린다.
 - LLM 은 결정적이지 않다 → 재현은 `play_log` 의 행동열을 그대로 재생해서 한다 (`reset.seed` 동일 + 같은 행동열 → 같은 결과).
 
 ## 6. 알려진 제약
@@ -359,5 +419,6 @@ LLM 연결 방식 (사용자 결정 2026-11-22, 2026-11-23 갱신): **본체 = �
 | 버전 | 날짜 | 내용 |
 |---|---|---|
 | 0.1 | 2026-11-22 | 초안 |
+| 0.3 (추가) | 2026-11-24 | **선택 필드만, 버전 그대로**: `actions[].description`·`actions[].schema`, `pilot_guide{system_prompt, about, rules, default_goal}`, `progress_keys` (4.2.1). 보내지 않는 게임·읽지 않는 클라이언트 모두 그대로 동작하므로 hello 버전을 올리지 않는다. 클라이언트 공통 부분 = SDK `btqa_play` (5장) |
 | 0.3 | 2026-11-23 | **전투 물약 = 인벤토리**(퀵슬롯 등록분, `min(보유, cap)`, 사용분 차감; `combat_started.potions`, `aftermath.potions_used`, `encounter_start_state:"barrier_inventory_potions"`). `pilot_note`(4.10) + `play_description.pilot_notes`. 클라이언트는 0.3 → 0.2 → 0.1 순으로 hello, 0.3 미만이면 메모를 보내지 않고 `run.json.pilot_notes` 에만 남긴다 |
 | 0.2 | 2026-11-23 | 0.6.2 구현 반영: hello 주.부 일치, reset 인자 제한, `scenarios{name,boss}`, `actions` 실제 목록(`ui_input` 제거), `combat.encounters`, 관찰 `quickslots`·퀘스트 `active/ready`·`marker`·`modal:"tip"`, `reason_detail` 형식, `engage`=done / `move_to`=interrupted(combat), 조우 seed 식, `combat_started`·`aftermath` 필드, `set_loadout` 전체 교체, 오류 표 |

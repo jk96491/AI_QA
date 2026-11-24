@@ -16,7 +16,7 @@
 
 ## 2. 설정 파일 `llm.json` (저장소 루트, git 에 안 올라감)
 
-`play_agent/llm.example.json` 을 복사해 `llm.json` 으로 저장하고 고친다. CLI 인자를 주면 파일 값보다 우선한다.
+`btqa_sdk/python/btqa_play/llm.example.json` 을 복사해 `llm.json` 으로 저장하고 고친다. CLI 인자를 주면 파일 값보다 우선한다.
 
 ```json
 {"llm": "openai", "model": "qwen2.5:14b", "base_url": "http://localhost:11434/v1", "api_key_env": null}
@@ -60,7 +60,7 @@ Claude Code 에게는 "relay 를 띄우고 step 으로 튜토리얼을 플레이
 
 ### C. Claude API
 
-1. Python ≥ 3.10 venv: `py -3.12 -m venv venv_play` → `venv_play\Scripts\python.exe -m pip install anthropic numpy`
+1. Python ≥ 3.10 venv (지금은 없음 — 2026-11-24 삭제, 쓸 때 만든다): `py -3.12 -m venv venv_play` → `venv_play\Scripts\python.exe -m pip install anthropic numpy` → SDK 편집 설치 `venv_play\Scripts\python.exe -m pip install -e ./btqa_sdk` (btqa_play)
 2. 키: console.anthropic.com 에서 발급 → `setx ANTHROPIC_API_KEY "sk-ant-..."` (재시작)
 3. `venv_play\Scripts\python.exe -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run> --llm anthropic --effort low --max-actions 40`
 
@@ -75,6 +75,6 @@ LLM 이 도구를 부르기 전에 말한 한 문장은 게임 화면 "QA 플레
 
 ## 5. 새 LLM 백엔드 추가 (개발자)
 
-`play_agent/llm/base.py: LlmBackend` 를 상속해 `start / complete / add_tool_results / add_user` 를 구현하고 `play_agent/llm/__init__.py: make_backend` 에 이름을 등록한다.
+LLM 백엔드는 SDK `btqa_play` 에 있다 (`btqa_sdk/python/btqa_play/llm/`, 이 저장소는 직접 참조). 거기서 `llm/base.py: LlmBackend` 를 상속해 `start / complete / add_tool_results / add_user` 를 구현하고 `llm/__init__.py: make_backend` 에 이름을 등록한다 (SDK 레포에 커밋).
 도구 정의는 중립 형식(`tools.build_tools`)으로 들어오고, 백엔드가 자기 API 형식으로 바꾼다. 테스트는 `tests/play/test_llm.py` 처럼 가짜 전송을 주입해 네트워크 없이.
 `play_agent` 는 `balance_qa`·`game_sim`·`torch` 를 import 하지 않는다 (`tests/test_independence.py`).

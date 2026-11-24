@@ -84,7 +84,7 @@ python -m balance_qa --workers 8 --game-cmd "Build/Game.exe -batchmode -nographi
 - 대화형 에이전트(Claude Code 등)가 직접: `python -m play_agent relay ...` + `step` (API 과금 없음)
 - 로컬 LLM(Ollama·LM Studio): `python -m play_agent play ... --llm openai --model qwen2.5:14b`
 - Claude API: `--llm anthropic` (Python ≥ 3.10 venv, 키는 환경변수 `ANTHROPIC_API_KEY`)
-- 설정은 `llm.json`(git 에 안 올라감, 예시 `play_agent/llm.example.json`), PyCharm `14 LLM 플레이 (각자 LLM)`
+- 설정은 `llm.json`(git 에 안 올라감, 예시 `btqa_sdk/python/btqa_play/llm.example.json`), PyCharm `14 LLM 플레이 (각자 LLM)`
 
 ## 실험 (설계 문서 10장)
 

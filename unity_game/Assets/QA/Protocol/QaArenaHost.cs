@@ -42,6 +42,9 @@ namespace Qa.Protocol
             d.Triggers.StateFeatures.AddRange(P.TriggerStateFeatures);
             d.Triggers.Totals.AddRange(P.TriggerTotalsFields);
             d.ResultFields.AddRange(P.ResultFields);
+            // 1.4: 판 시작 상태 (컨텍스트 밴딧). 이름은 triggers.state_features 안에서만. resource_ratio 는 직업마다 시작 자원이 달라 넣지 않는다.
+            d.InitialState.Add(new InitialStateDecl("hp_ratio", 0.05, 1.0, 1.0, "판 시작 체력 / 최대 체력"));
+            d.InitialState.Add(new InitialStateDecl("potions_ratio", 0.0, 1.0, 1.0, "판 시작 물약 = round(비율 × 직업 물약 수), 0.5 올림"));
             return _decl = d;
         }
 
@@ -77,6 +80,12 @@ namespace Qa.Protocol
             {
                 var sim = new CombatSim(_repo.Class(req.Class.Name), _repo.BossFor(req.Scenario), req.Params, req.Seed,
                                         req.SeedToken, cfg, req.Thresholds, onTrigger);
+                if (req.InitialState != null)   // null = 요청 없음 -> 1.3 과 같은 판 (바이트 단위 동일)
+                {
+                    sim.SetStartHpRatio(req.InitialState["hp_ratio"]);
+                    int cap = _repo.Class(req.Class.Name).Stats.Potions;
+                    sim.SetStartPotions((int)System.Math.Floor(req.InitialState["potions_ratio"] * cap + 0.5));
+                }
                 result = sim.Run();
             }
             catch (ParamException ex)

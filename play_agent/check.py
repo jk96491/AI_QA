@@ -4,6 +4,7 @@ unity_game/QaTools~/play_check.py (Unity 쪽 자체 검증) 의 T2~T8·T-P·T-N 
   T2 핸드셰이크 · T3 지각 필터+P1 행동 · T4 튜토리얼 q_tut_01~05 · T5 전투 동일성(--balance) · T6 전투 인계
   T7 결정성 · T8 새 게임 · T9 학습 결과 인계(--loadout: params.json/policy.json → set_loadout + 응답기, 밸런스 결과와 일치)
   T-P (v0.3) 전투 물약 = 퀵슬롯 물약 min(보유, cap), 사용분 차감 · T-N (v0.3) pilot_note
+  T-D (0.3 선택 필드 4.2.1) 행동 설명·스키마가 게임 선언 또는 QaArena 스펙에 있는지 + 선언 규칙 (SDK validate_description)
 T5·T9 의 밸런스 비교는 물약을 cap 개 가져간 조우(carried == cap)만 한다 — 밸런스 판은 항상 cap 개로 시작한다.
 
 인스턴스는 직접 띄운 것(--game 등)을 쓰거나 --exe 로 헤드리스 인스턴스를 띄운다.
@@ -18,7 +19,10 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from play_agent.client import BOSS_MISMATCH_CODES, PlayClient, parse_endpoint
+from btqa_play.client import BOSS_MISMATCH_CODES, PlayClient, parse_endpoint
+from btqa_play.spec import PlaySpec
+from btqa_play.tools import tool_sources, validate_description
+from play_agent import QA_ARENA_SPEC
 from play_agent.loadout import LoadoutBuilder
 
 EXPECTED_ACTIONS = ["move_to", "interact", "ui_click", "use_item", "engage", "wait"]
@@ -223,6 +227,12 @@ def t2(ck: Checker, ep: str) -> None:
              "protocol %s, pilot_notes %s" % (c.pc.protocol_version, d.get("pilot_notes")))
     ck.check("T-P describe.combat.encounter_start_state = %s" % START_STATE, (d.get("combat") or {}).get("encounter_start_state") == START_STATE,
              str((d.get("combat") or {}).get("encounter_start_state")))
+    spec = PlaySpec.load(QA_ARENA_SPEC)
+    problems = validate_description(d, spec) if d.get("type") == "play_description" else ["play_describe 실패"]
+    src = tool_sources(d, spec) if not problems else {}
+    ck.check("T-D 행동 설명·스키마가 게임 선언 또는 QaArena 스펙에 모두 있음 + 선언 규칙 (4.2.1)", not problems,
+             "; ".join(problems) if problems else "출처 %s, pilot_guide %s" % (
+                 ",".join("%s=%s" % kv for kv in src.items()), "있음" if d.get("pilot_guide") else "없음"))
     r = c.rq({"type": "reset", "seed": 1, "start": "checkpoint"})
     ck.check("reset 에 시작 지점 옵션 → bad_request (항상 새 게임)", r.get("code") == "bad_request")
     r = c.rq({"type": "reset", "seed": 1, "class": "paladin"})
