@@ -72,3 +72,19 @@ venv\Scripts\python.exe -m play_agent step move_to "{\"target\":\"npc_elder\",\"
 교사(Claude) / 원본 0.5B·1.5B·3B / LoRA 0.5B·1.5B·3B × seed N개:
 전부 완료율, 퀘스트 평균, 행동 수, 형식 오류율, 근거 없는 행동 수, 호출당 시간(CPU), 입력 토큰.
 `play_agent batch` 의 `summary.json` 이 이 열들을 낸다.
+
+## 6. 실험 기록 (밤새 반복, 2026-11-24~25)
+
+평가 = `play_agent batch` 전사·늑대왕 로드아웃 seed 1~3, 판당 최대 70행동, CPU(Ollama Q4_K_M). 학습 = RTX 3060, Qwen2.5-1.5B-Instruct + LoRA r16.
+
+| 회차 | 학습 | 데이터 | 결과 (퀘스트 평균 / 5) | 막힌 곳·진단 |
+|---|---|---|---|---|
+| 원본 | — | — | **0.0** (형식 오류 0%, 호출당 4.2s) | 퀘스트 무시, 상인 대화창 열린 채 talk 반복 |
+| r1 | SFT(BC) 3 epoch, val 0.45→0.40 | 교사 7판 251 | **1.0** (6.3s) | 숲에 들어가자마자 "3개 채집했다"고 지어내고 마을로 — 진행도(0/3)를 안 읽음 |
+| r2 | SFT 5 epoch (best ep3 val 0.18) | + thought 앞에 **상황 읽기**("상황: forest · 약초 0/3 · 창 없음 →") | **1.0** (7.5s) | 약초 3개는 정확히 모음. 반납 대상(촌장)이 **다른 지역**인데 그 id 로 가려다 실패 → 퀘스트 창 반복 |
+| DAgger 1 | — | r2 학생, seed 21: 48단계 중 학생 정답 40 (83%), 교정 8 | — | 교정: 다른 지역 반납 대상(3), 닫힌 대화창 버튼, 상점 1/2 에서 닫기, 마을 진입 직후 퀘스트 창 |
+| r3 | SFT 3 epoch | 교사 7판 + DAgger 1 (교정 3배), 상황에 **"대상 보임/이 지역에 없음"** 추가 (`distill_out/data/v5`, config `distill_out/r3/config.json`) | **중단** — 시작 직후 PC 메모리 부족으로 Claude Code 가 백그라운드 작업을 강제 종료 (Ollama 모델·헤드리스 게임·브라우저 등과 겹침, Windows 는 GPU 메모리가 차면 시스템 RAM 으로 넘침). 사용자 확인 후 재시작 | |
+
+**재개 방법 (2026-11-25 새벽 중단 지점)**: Ollama 모델 내리고(`ollama stop <모델>`) 게임 끈 상태에서
+`venv_distill\Scripts\python.exe -m btqa_distill train --config distill_out/r3/config.json --train distill_out/data/v5/train.jsonl --val distill_out/data/v5/val.jsonl`
+→ merge·gguf·ollama(`qa-qwen1.5b-r3`) → batch seed 1~3. 그다음 DPO 쌍 `distill_out/data/pairs_v1.jsonl`(8쌍, 더 모을 것) → `btqa_distill.dpo` (r4), RFT `python -m play_agent.distill_run rft` (r5, 게임 2개 7801·7802).

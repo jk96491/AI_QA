@@ -19,9 +19,9 @@ from play_agent.loadout import LoadoutBuilder
 class PilotRelay(SdkPilotRelay):
     def __init__(self, game: str, loadout: Optional[List[str]] = None, seed: int = 1, cls: str = "warrior",
                  port: int = DEFAULT_RELAY_PORT, out: str = "reports", pilot: str = "claude-code",
-                 spec: Any = QA_ARENA_SPEC, stateless: bool = False, record: Any = None) -> None:
+                 spec: Any = QA_ARENA_SPEC, stateless: bool = False, record: Any = None, student: Any = None) -> None:
         super().__init__(game, seed=seed, cls=cls, port=port, out=out, pilot=pilot, spec=spec, stateless=stateless,
-                         record=record)
+                         record=record, student=student)
         self.lb = LoadoutBuilder()
         for p in loadout or []:
             self.lb.add_file(p)

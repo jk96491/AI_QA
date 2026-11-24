@@ -178,14 +178,15 @@ def cmd_batch(a: argparse.Namespace) -> int:
 
 def cmd_relay(a: argparse.Namespace) -> int:
     from play_agent.relay import PilotRelay
+    from btqa_play.__main__ import student_backend
     PilotRelay(a.game, a.loadout, seed=a.seed, cls=a.cls, port=a.port, out=a.out, spec=_spec_arg(a),
-               stateless=a.stateless, record=a.record).serve()
+               stateless=a.stateless, record=a.record, student=student_backend(a.student, a.student_url)).serve()
     return 0
 
 
 def cmd_step(a: argparse.Namespace) -> int:
     from play_agent.relay import relay_step
-    print(relay_step(a.tool, json.loads(a.input or "{}"), port=a.port, thought=a.think, kind=a.kind))
+    print(relay_step(a.tool, json.loads(a.input or "{}"), port=a.port, thought=a.think, kind=a.kind, execute=a.execute))
     return 0
 
 
@@ -273,6 +274,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
     p.add_argument("--stateless", action="store_true", help="단계 형식: 응답 = 학생과 같은 다음 단계 입력")
     p.add_argument("--record", help="교사 데이터 JSONL (stateless 를 켠다) — 증류용")
+    p.add_argument("--student", help="교정(DAgger) 모드: 학생 Ollama 모델 — view 에 제안, step --execute student 로 학생 행동 실행")
+    p.add_argument("--student-url", default="http://localhost:11434/v1")
     p.set_defaults(fn=cmd_relay)
 
     p = sub.add_parser("tools", help="게임 선언 → LLM 도구·시스템 프롬프트 미리 보기 + 선언 검사 (SDK)")
@@ -287,6 +290,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--think", help="행동 전에 게임 화면에 띄울 플레이어 생각 (play v0.3 pilot_note)")
     p.add_argument("--kind", default="thought", choices=["thought", "plan", "finding"])
     p.add_argument("--port", type=int, default=7899)
+    p.add_argument("--execute", choices=["student"])
     p.set_defaults(fn=cmd_step)
 
     a = ap.parse_args(argv)

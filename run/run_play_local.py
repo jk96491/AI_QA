@@ -107,8 +107,22 @@ def print_step(s: Dict[str, Any]) -> None:
             print("            ✓ 퀘스트 목표 완료: %s" % q.get("title"), flush=True)
 
 
+def _args() -> None:
+    """명령줄로 설정 덮기 (PyCharm 은 위 설정 블록): --model qa-qwen1.5b-r1 --seed 2 --cls mage --max-actions 60"""
+    import argparse
+    global MODEL, SEED, CLASS, MAX_ACTIONS
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default=MODEL)
+    ap.add_argument("--seed", type=int, default=SEED)
+    ap.add_argument("--cls", default=CLASS)
+    ap.add_argument("--max-actions", type=int, default=MAX_ACTIONS)
+    a = ap.parse_args()
+    MODEL, SEED, CLASS, MAX_ACTIONS = a.model, a.seed, a.cls, a.max_actions
+
+
 def main() -> int:
     setup()
+    _args()
     from btqa_play.client import PlayClient
     from btqa_play.evaluate import quests_completed
     from btqa_play.llm.json_action import JsonActionBackend
