@@ -88,3 +88,5 @@ venv\Scripts\python.exe -m play_agent step move_to "{\"target\":\"npc_elder\",\"
 **재개 방법 (2026-11-25 새벽 중단 지점)**: Ollama 모델 내리고(`ollama stop <모델>`) 게임 끈 상태에서
 `venv_distill\Scripts\python.exe -m btqa_distill train --config distill_out/r3/config.json --train distill_out/data/v5/train.jsonl --val distill_out/data/v5/val.jsonl`
 → merge·gguf·ollama(`qa-qwen1.5b-r3`) → batch seed 1~3. 그다음 DPO 쌍 `distill_out/data/pairs_v1.jsonl`(8쌍, 더 모을 것) → `btqa_distill.dpo` (r4), RFT `python -m play_agent.distill_run rft` (r5, 게임 2개 7801·7802).
+
+**데이터 백업 (커밋됨)**: 교사·DAgger 기록과 데이터셋 v0~v5·DPO 쌍 사본 = `distill_data/` (README). 새 데이터를 만들면 거기에도 복사한다. 모델은 커밋하지 않는다.

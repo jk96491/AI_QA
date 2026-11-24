@@ -1,0 +1,28 @@
+{
+  "format": "btqa-play-sft/1",
+  "inputs": [
+    "reports/distill/teacher.jsonl"
+  ],
+  "read": 112,
+  "kept": 112,
+  "dropped": {},
+  "conflicting_inputs": 0,
+  "runs": 3,
+  "val_runs": [
+    "relay-20261124-215014-s1"
+  ],
+  "train": 73,
+  "val": 39,
+  "tools": {
+    "move_to": 31,
+    "interact": 31,
+    "ui_click": 43,
+    "engage": 4,
+    "finish": 3
+  },
+  "mean_chars": {
+    "user": 1655.2,
+    "assistant": 91.9
+  },
+  "distinct_systems": 1
+}

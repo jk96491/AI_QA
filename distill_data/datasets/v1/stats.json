@@ -1,0 +1,31 @@
+{
+  "format": "btqa-play-sft/1",
+  "inputs": [
+    "reports/distill/teacher.jsonl"
+  ],
+  "read": 219,
+  "kept": 217,
+  "dropped": {
+    "duplicate": 2
+  },
+  "conflicting_inputs": 0,
+  "thought_variants": 93,
+  "runs": 6,
+  "val_runs": [
+    "relay-20261124-215705-s5"
+  ],
+  "train": 185,
+  "val": 32,
+  "tools": {
+    "move_to": 60,
+    "interact": 58,
+    "ui_click": 84,
+    "engage": 9,
+    "finish": 6
+  },
+  "mean_chars": {
+    "user": 1662.7,
+    "assistant": 88.5
+  },
+  "distinct_systems": 1
+}
