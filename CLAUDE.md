@@ -9,7 +9,7 @@
 
 | 패키지 | 역할 | 금지 |
 |---|---|---|
-| `btqa_sdk/` | **BT-QA SDK (별도 GitHub 레포, 이 저장소 안에 clone, git 제외)** — Python 은 **사본 없이 직접 참조** (venv 편집 설치 `pip install --no-deps --no-build-isolation -e ./btqa_sdk`, 사용자 결정 2026-11-24). `btqa_game`(게임 쪽: 서버·세션·정의서 선언·검증·`python -m btqa_game check`·예제 게임) + `btqa_play`(플레이 모드 LLM 클라이언트: PlayClient·LLM 도구·프롬프트·LlmPilot·PilotRelay·LLM 백엔드·`python -m btqa_play tools`). Unity 사본 `unity_game/Packages/com.btqa.game`·계약 사본 `docs/PROTOCOL.md`·`docs/PLAY_PROTOCOL.md` 만 `run/run_sync_sdk.py` 로 복사. 개요 `docs/SDK.md` | SDK 안에서 이 저장소 패키지 import, `torch`·`numpy` |
+| `btqa_sdk/` | **BT-QA SDK (별도 GitHub 레포, 이 저장소 안에 clone, git 제외)** — 선택 패키지 `btqa_distill`(증류 학습, torch 등 별도 venv `venv_distill`) 포함 — Python 은 **사본 없이 직접 참조** (venv 편집 설치 `pip install --no-deps --no-build-isolation -e ./btqa_sdk`, 사용자 결정 2026-11-24). `btqa_game`(게임 쪽: 서버·세션·정의서 선언·검증·`python -m btqa_game check`·예제 게임) + `btqa_play`(플레이 모드 LLM 클라이언트: PlayClient·LLM 도구·프롬프트·LlmPilot·PilotRelay·LLM 백엔드·`python -m btqa_play tools`). Unity 사본 `unity_game/Packages/com.btqa.game`·계약 사본 `docs/PROTOCOL.md`·`docs/PLAY_PROTOCOL.md` 만 `run/run_sync_sdk.py` 로 복사. 개요 `docs/SDK.md` | SDK 안에서 이 저장소 패키지 import, `torch`·`numpy` |
 | `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터. 서버는 SDK `btqa_game` 으로 구현 (`GameSimHost`). 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
 | `balance_qa/` | **학습 플랫폼** (SDK 를 쓰는 쪽, 계약만 따름): 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim`, `btqa_game` import |
 | `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.4) | — |
@@ -19,6 +19,7 @@
 - `game_sim/` 은 Unity 게임이 생긴 뒤에도 **참조 구현 + 테스트용 가짜 게임**으로 유지한다 (사용자 결정). 지우지 않는다.
 
 - 두 패키지는 프로세스·포트로만 연결된다. `tests/test_independence.py` 가 import 를 검사한다.
+- **모델 가중치·어댑터·GGUF·증류 산출물은 원본이든 증류든 절대 커밋하지 않는다** (사용자 결정 2026-11-24): `.gitignore`(두 레포), `tests/test_no_model_files.py`, pre-commit hook(`run/run_setup_sdk.py` 가 설치). 학습 출력은 `distill_out/` 등 제외 경로에.
 - 게임 데이터(`game_sim/data/`)는 학습 쪽이 직접 읽지 않는다. `describe` 응답으로만 받는다.
 - 페르소나(`qa_specs/personas.json`)는 퍼블리셔 쪽 정의라 학습 쪽에 있다.
 - 플레이 프로토콜·LLM 도구·루프를 바꾸면: `btqa_sdk/docs/PLAY_PROTOCOL.md` + `btqa_sdk/python/btqa_play` (+ `tests/test_play.py`, `CHANGELOG.md`) → `run/run_sync_sdk.py`(문서 사본) → `play_agent` → Unity 요청서. **SDK 에 게임 내용(행동 설명·장르 개념·목표)을 넣지 않는다** (사용자 결정 2026-11-24). 게임 고유 도구 설명·안내·진척 기준은 게임이 `play_description.actions[].description/schema`·`pilot_guide`·`progress_keys` 로 선언하고 (4.2.1), 선언 전에는 같은 형식의 외부 스펙 `play_agent/specs/qa_arena.play.json` (`btqa-play-spec/1`) 이 채운다.
@@ -36,6 +37,7 @@
 - 플레이 모드 LLM 은 **사용자가 각자 고른다** (`docs/LLM_SETUP.md`, 설정 `llm.json` — git 제외, 예시 `btqa_sdk/python/btqa_play/llm.example.json`). 저장소에 키·특정 LLM 을 박지 않는다. 키는 환경변수 이름(`api_key_env`)만.
   - `openai`(OpenAI 호환: 로컬 Ollama·LM Studio 등) 백엔드는 표준 라이브러리만 → 3.8 venv 그대로. `anthropic`(Claude API) 만 anthropic SDK(Python ≥3.10) 별도 venv(`venv_play` — 지금은 없음, 쓸 때 만들고 `pip install -e ./btqa_sdk`), SDK 는 `AnthropicBackend` 안에서만 import.
   - 이 사용자는 API 추가 과금을 원하지 않는다 → 직접 플레이할 땐 `relay`/`step` (Claude Code 세션이 플레이어).
+  - **증류 (사용자 결정 2026-11-24)**: 교사 = 이 세션(relay `--record`), 학생 = 작은 로컬 LLM (Qwen2.5 0.5B~3B, **플레이는 CPU**, 학습은 GPU LoRA). 학생은 대화 기록 없이 **지금 관찰 + 직전 행동 결과 → JSON 행동 1개** (`btqa_play` 단계 형식). 계획·명령 `docs/DISTILL.md`. 시야 밖 정보는 게임 쪽에서 푼다 (`unity_game/OFFSCREEN_TARGET_REQUEST.md`).
 - 정의서·데이터는 **JSON**.
 - Windows 콘솔 한글: 진입점에서 `sys.stdout.reconfigure(encoding="utf-8")` (cli, game_sim `__main__`, experiments/common 에 있음).
 
@@ -61,10 +63,13 @@ python -m play_agent tools --game 127.0.0.1:7800 [--spec none]   # 게임 선언
 python -m play_agent check-play --exe unity_game/Build/QaArena.exe [--loadout reports/<run>]  # 플레이 모드 적합성 (LLM 없음)
 python -m play_agent play --game 127.0.0.1:7800 --loadout reports/<run> --llm openai --model qwen2.5:14b   # 각자 LLM (또는 llm.json). --llm anthropic 은 Python ≥3.10 venv
 python -m play_agent relay --game 127.0.0.1:7800 --loadout reports/<run>  # Claude Code 세션이 플레이어 (API 없음): 이후 step <tool> '<json>' 로 한 행동씩, finish 로 저장
+python -m play_agent relay ... --record reports/distill/teacher.jsonl     # 증류 교사 데이터 (응답의 step_input 만 보고 판단) — docs/DISTILL.md
+python -m play_agent batch --game ... --seeds 1-5 --llm openai --model qwen2.5:1.5b --tool-mode json --stateless --record   # 작은 로컬 모델(CPU) 기준선·비교
 python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game ... | --game-cmd ...]   # E0~E8 (E8 = e8_bandit)
 ```
 
 **학습 결과 화면으로 보기**: `venv\Scripts\python.exe run/run_watch.py` (PyCharm `00c`) — 학습 없이 reports/ 최근 CMA-ES·IMPALA 결과와 손 튜닝을 같은 seed 로 Unity 창 3개에 나란히 재생.
+**로컬 LLM 플레이 화면으로 보기**: `venv\Scripts\python.exe run/run_play_local.py` (PyCharm `16`) — Ollama 작은 모델(CPU 전용 변형)이 마을부터 플레이, 콘솔에 단계별 행동·생각. 증류 모델은 `MODEL` 에.
 **플레이 모드 화면으로 보기**: `venv\Scripts\python.exe run/run_watch_play.py` (PyCharm `00d`) — 마을에서 시작해 튜토리얼 5개를 고정 행동열로 진행, 전투는 최근 학습 결과(forest_wolf_king) 로드아웃의 BT. LLM 없이.
 **새 Unity 빌드 측정**: `venv\Scripts\python.exe run/run_measure_build.py` (적합성 + 손튜닝 기준선 + CMA-ES + IMPALA 표) → `docs/STATUS.md` 3장 표에 한 줄 추가.
 **전체 사이클 점검**: `venv\Scripts\python.exe run/run_full_cycle.py` (적합성→describe→기준선→CMA-ES→params 재사용→IMPALA→리포트). 현재 최우선 목표는 성능이 아니라 이 사이클이 끊김 없이 도는 것 (사용자 우선순위).

@@ -11,6 +11,9 @@
   relay       대화형 에이전트(Claude Code 세션 등)가 직접 플레이어 — API 호출 없음, 3.8 venv
       --game ... --loadout ... [--port 7899]      이후 `step <tool> '<json>' [--think "..."]` 로 한 행동씩 (finish 로 끝, 기록 저장)
   tools       게임 선언 → LLM 도구·출처·시스템 프롬프트 미리 보기 + 선언 검사 (= python -m btqa_play tools)
+  batch       같은 LLM 으로 여러 seed → summary.json (SDK btqa_play.evaluate + QaArena 로드아웃) — 기준선·증류 비교
+      --game ... --seeds 1-5 --llm openai --model qwen2.5:1.5b --tool-mode json --stateless [--record]
+  relay --record teacher.jsonl   증류 교사 데이터 (학생과 같은 단계 입력만 보고 판단, docs/DISTILL.md)
 
 루프·도구·LLM 백엔드는 SDK btqa_play. 여기서는 학습 결과 로드아웃·전투 응답기를 붙인다.
 """
@@ -84,43 +87,61 @@ def cmd_loadout(a: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_play(a: argparse.Namespace) -> int:
+def _backend(a: argparse.Namespace):
     from btqa_play.llm import load_config, make_backend
-    from btqa_play.pilot import LlmPilot, PilotConfig   # anthropic SDK 는 AnthropicBackend 안에서만 import
+    cfg = load_config(a.llm_config, {"llm": a.llm, "model": a.model, "base_url": a.base_url,
+                                     "api_key_env": a.api_key_env, "effort": a.effort, "tool_mode": a.tool_mode})
+    return cfg, make_backend(cfg)
 
+
+def _play_one(c: PlayClient, backend, lb: LoadoutBuilder, a: argparse.Namespace, seed: int, recorder=None):
+    """한 판: reset → LlmPilot. (run, log)."""
+    from btqa_play.pilot import LlmPilot, PilotConfig   # anthropic SDK 는 AnthropicBackend 안에서만 import
+    cfg = PilotConfig(max_actions=a.max_actions, max_calls=a.max_calls, goal=getattr(a, "goal", None),
+                      stateless=a.stateless or recorder is not None)
+    obs = c.reset(seed=seed, cls=a.cls)
+    run = LlmPilot(c, responder=lb.responder(), config=cfg, backend=backend, spec=_spec_arg(a), recorder=recorder).run(obs)
+    return run, c.get_log()
+
+
+def _connect(a: argparse.Namespace, lb: LoadoutBuilder):
+    c = PlayClient.connect(a.game)
+    c.hello()
+    desc = c.describe()
+    problems = lb.check_against(desc)
+    if problems:
+        c.close()
+        raise SystemExit("로드아웃 문제:\n  " + "\n  ".join(problems))
+    if lb.entries:
+        c.set_loadout(lb.wire_entries(desc), persona=lb.persona())
+    return c, desc
+
+
+def cmd_play(a: argparse.Namespace) -> int:
+    from btqa_play.evaluate import quests_completed
+    from btqa_play.record import StepRecorder
     try:
-        llm_cfg = load_config(a.llm_config, {"llm": a.llm, "model": a.model, "base_url": a.base_url,
-                                             "api_key_env": a.api_key_env, "effort": a.effort})
-        backend = make_backend(llm_cfg)
+        llm_cfg, backend = _backend(a)
     except (ValueError, FileNotFoundError) as e:
         print("LLM 설정:", e, file=sys.stderr)
         return 2
     lb = _builder(a.loadout or [])
-    cfg = PilotConfig(max_actions=a.max_actions, max_calls=a.max_calls)
-    with PlayClient.connect(a.game) as c:
-        c.hello()
-        desc = c.describe()
-        problems = lb.check_against(desc)
-        if problems:
-            print("로드아웃 문제:\n  " + "\n  ".join(problems), file=sys.stderr)
-            return 2
-        if lb.entries:
-            c.set_loadout(lb.wire_entries(desc), persona=lb.persona())
-        obs = c.reset(seed=a.seed, cls=a.cls)
-        pilot = LlmPilot(c, responder=lb.responder(), config=cfg, backend=backend, spec=_spec_arg(a))
-        run = pilot.run(obs)
-        log = c.get_log()
+    rec = StepRecorder(a.record, run="play-%s-s%d" % (time.strftime("%Y%m%d-%H%M%S"), a.seed), source="model",
+                       model=backend.label) if a.record else None
+    c, desc = _connect(a, lb)
+    with c:
+        run, log = _play_one(c, backend, lb, a, a.seed, rec)
         notes = c.notes + lb.notes
     out = Path(a.out) / ("play-" + time.strftime("%Y%m%d-%H%M%S"))
     out.mkdir(parents=True, exist_ok=True)
     meta = {"game": "%s %s" % (desc.get("game"), desc.get("game_version")), "seed": a.seed, "class": a.cls,
             "llm": backend.label, "llm_config": {k: v for k, v in llm_cfg.items() if not k.startswith("_")},
-            "pilot_notes": c.pilot_notes, "loadout": [e.source for e in lb.entries.values()], "notes": notes}
+            "pilot_notes": c.pilot_notes, "loadout": [e.source for e in lb.entries.values()], "notes": notes,
+            "record": a.record}
     (out / "run.json").write_text(json.dumps(dict(meta, **run.to_dict()), ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     (out / "play_log.json").write_text(json.dumps(log, ensure_ascii=False), encoding="utf-8")
-    done = [e[2].get("quest") for e in log.get("entries", []) if e[1] == "quest_completed"]
-    print("끝: %s | 행동 %d, LLM %d회, %ss | 완료 퀘스트 %s | 전투 %s" % (
-        run.end_reason, run.actions, run.api_calls, run.seconds, done,
+    print("끝: %s | 행동 %d, LLM %d회 (형식 오류 %d), %ss | 완료 퀘스트 %s | 전투 %s" % (
+        run.end_reason, run.actions, run.api_calls, run.invalid_outputs, run.seconds, quests_completed(log),
         ["%s:%s" % (x["enemy"], "승" if x["cleared"] else "패") for x in run.combats]))
     print("토큰:", run.usage)
     if run.finish:
@@ -129,9 +150,36 @@ def cmd_play(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_batch(a: argparse.Namespace) -> int:
+    """SDK btqa_play.evaluate.run_batch + QaArena 로드아웃(학습 BT 전투)·스펙."""
+    from btqa_play.evaluate import parse_seeds, run_batch
+    from btqa_play.pilot import PilotConfig
+    try:
+        llm_cfg, backend = _backend(a)
+    except (ValueError, FileNotFoundError) as e:
+        print("LLM 설정:", e, file=sys.stderr)
+        return 2
+    lb = _builder(a.loadout or [])
+    out = Path(a.out) / ("batch-" + time.strftime("%Y%m%d-%H%M%S"))
+    c, desc = _connect(a, lb)
+    with c:
+        s = run_batch(c, backend, parse_seeds(a.seeds),
+                      PilotConfig(max_actions=a.max_actions, max_calls=a.max_calls, goal=a.goal, stateless=a.stateless),
+                      spec=_spec_arg(a), responder=lb.responder(), cls=a.cls, out_dir=out, record=a.record,
+                      llm_config={k: v for k, v in llm_cfg.items() if not k.startswith("_")},
+                      loadout=[e.source for e in lb.entries.values()], spec_file=_spec_arg(a),
+                      on_run=lambda r: print("seed %(seed)d: %(end_reason)s | 퀘스트 %(quests_done)d/%(quests_total)d | 행동 %(actions)d, "
+                                             "형식 오류 %(invalid_outputs)d | 호출당 %(latency_mean_s).1fs, 입력 %(input_tokens_per_call)d토큰" % r,
+                                             flush=True))
+    print("요약: 전부 완료 %.0f%% | 퀘스트 평균 %.1f/%d | 형식 오류율 %.1f%% | 호출당 %.1fs | %s" % (
+        100 * s["full_clear_rate"], s["quests_done_mean"], s["quests_total"], 100 * s["invalid_rate"], s["latency_mean_s"], out))
+    return 0
+
+
 def cmd_relay(a: argparse.Namespace) -> int:
     from play_agent.relay import PilotRelay
-    PilotRelay(a.game, a.loadout, seed=a.seed, cls=a.cls, port=a.port, out=a.out, spec=_spec_arg(a)).serve()
+    PilotRelay(a.game, a.loadout, seed=a.seed, cls=a.cls, port=a.port, out=a.out, spec=_spec_arg(a),
+               stateless=a.stateless, record=a.record).serve()
     return 0
 
 
@@ -188,7 +236,32 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--max-calls", type=int, default=250)
     p.add_argument("--out", default="reports")
     p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
+    p.add_argument("--tool-mode", choices=["native", "json"], help="openai: json = 출력 JSON 을 스키마로 강제 (작은 로컬 모델)")
+    p.add_argument("--stateless", action="store_true", help="단계마다 새 대화 (지금 관찰 + 직전 행동 결과만)")
+    p.add_argument("--record", help="단계 기록 JSONL (stateless 를 켠다)")
+    p.add_argument("--goal")
     p.set_defaults(fn=cmd_play)
+
+    p = sub.add_parser("batch", help="같은 LLM 으로 여러 seed 플레이 → summary.json (기준선·증류 비교)")
+    p.add_argument("--game", required=True)
+    p.add_argument("--seeds", default="1-5", help="예: 1-5 또는 1,3,7")
+    p.add_argument("--loadout", nargs="*")
+    p.add_argument("--cls", default="warrior")
+    p.add_argument("--llm", choices=["anthropic", "openai"])
+    p.add_argument("--llm-config")
+    p.add_argument("--model")
+    p.add_argument("--base-url")
+    p.add_argument("--api-key-env")
+    p.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"])
+    p.add_argument("--tool-mode", choices=["native", "json"])
+    p.add_argument("--stateless", action="store_true")
+    p.add_argument("--record", action="store_true", help="판별 단계 기록을 batch 폴더 steps.jsonl 에 (stateless 를 켠다)")
+    p.add_argument("--goal")
+    p.add_argument("--max-actions", type=int, default=150)
+    p.add_argument("--max-calls", type=int, default=250)
+    p.add_argument("--out", default="reports")
+    p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
+    p.set_defaults(fn=cmd_batch)
 
     p = sub.add_parser("relay", help="대화형 에이전트가 플레이어가 되는 중계기 (API 호출 없음, 3.8 venv)")
     p.add_argument("--game", required=True)
@@ -198,6 +271,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--port", type=int, default=7899)
     p.add_argument("--out", default="reports")
     p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
+    p.add_argument("--stateless", action="store_true", help="단계 형식: 응답 = 학생과 같은 다음 단계 입력")
+    p.add_argument("--record", help="교사 데이터 JSONL (stateless 를 켠다) — 증류용")
     p.set_defaults(fn=cmd_relay)
 
     p = sub.add_parser("tools", help="게임 선언 → LLM 도구·시스템 프롬프트 미리 보기 + 선언 검사 (SDK)")

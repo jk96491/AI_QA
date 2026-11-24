@@ -24,6 +24,7 @@
 | 09 실험 E0~E7 | `run_experiment.py` | `EXPERIMENT`, `QUICK` 선택 |
 | 10 게임 대역 서버 | `run_game_server.py` | 게임 대역을 포트에 띄워 둠 (■ 로 정지) |
 | 11 IMPALA 액터 | `run_actor.py` | external 모드 학습기에 접속하는 액터 1개 (여러 번 실행 가능) |
+| **16 로컬 LLM 플레이 보기 (CPU, Unity 화면)** | `run_play_local.py` | Ollama 로컬 LLM(기본 `qwen2.5-1.5b-cpu`, 없으면 `qwen2.5:1.5b` 로 CPU 전용 변형을 만듦)이 마을부터 플레이하는 것을 Unity 창으로. 단계 형식(지금 관찰 → JSON 행동 1개), 전투는 최근 늑대왕 학습 결과 BT. 콘솔에 단계마다 호출 시간·행동·결과·생각, 기록 `reports/distill/local-*.jsonl`. 증류 모델은 `MODEL` 에 이름 |
 | **15 SDK 설치·업데이트** | `run_setup_sdk.py` | BT-QA SDK(별도 레포 btqa_sdk) clone + venv 편집 설치 + 확인. 처음 받았을 때·SDK 갱신 때 (`UPDATE = True` 면 git pull). 안내 `docs/INSTALL.md` |
 | (구성 없음) | `run_sync_sdk.py` | SDK → 사본(Unity 패키지·계약 문서) 갱신 |
 

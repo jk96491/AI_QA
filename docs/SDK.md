@@ -1,6 +1,6 @@
 # BT-QA SDK 와 이 저장소
 
-SDK 의 **원본은 별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** 다 (사용자 결정 2026-11-23, 0.1.0 = `5627219`, 0.2.0 = `6c71e4c`, **0.3.0** = `42ab358` 플레이 모드 클라이언트 `btqa_play` 추가, 2026-11-24).
+SDK 의 **원본은 별도 GitHub 레포 https://github.com/jk96491/btqa_sdk** 다 (사용자 결정 2026-11-23, 0.1.0 = `5627219`, 0.2.0 = `6c71e4c`, 0.3.0 = `42ab358` 플레이 모드 클라이언트 `btqa_play`, **0.4.0 = `82bad59`** 단계 형식·증류 파이프라인 `btqa_distill`, 2026-11-24).
 SDK 가이드·변경 이력·자체 테스트는 SDK 레포에 있다 (`README.md`, `docs/SDK.md`, `docs/PLAY_SDK.md`, `CHANGELOG.md`, `tests/`).
 
 ## Python = btqa_sdk 직접 참조 (사본 없음, 사용자 결정 2026-11-24)

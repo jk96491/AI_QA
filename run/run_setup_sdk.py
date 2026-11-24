@@ -24,6 +24,17 @@ SDK_DIR = ROOT / "btqa_sdk"   # 이 저장소 안 (.gitignore 로 제외됨)
 UPDATE = False                # True = 이미 있으면 git pull (SDK 최신으로)
 # ================================================
 
+PRE_COMMIT = """#!/bin/sh
+# 모델 가중치·어댑터는 원본이든 증류든 절대 커밋하지 않는다 (사용자 결정 2026-11-24). run/run_setup_sdk.py 가 설치.
+bad=$(git diff --cached --name-only --diff-filter=ACMR | grep -iE "\\.(gguf|safetensors|bin|pt|pth|ckpt|onnx|ggml|lora)$|(^|/)adapter_model\\.")
+if [ -n "$bad" ]; then
+  echo "커밋 거부: 모델 파일이 스테이징됨 — git restore --staged <파일>" >&2
+  echo "$bad" >&2
+  exit 1
+fi
+exit 0
+"""
+
 CHECK = r"""
 import json, btqa_game, btqa_play
 print(json.dumps({"btqa_game": btqa_game.__file__, "btqa_play": btqa_play.__file__,
@@ -63,6 +74,14 @@ def main() -> int:
     if run([py, "-m", "pip", "install", "--no-deps", "--no-build-isolation", "-e", SDK_DIR]) != 0:
         print("실패: pip 편집 설치")
         return 1
+
+    # 2b. 모델 파일 커밋 방지 hook (원본·증류 모델은 절대 커밋하지 않는다 — 사용자 결정 2026-11-24). .git 안이라 clone 마다 설치
+    for repo in (ROOT, SDK_DIR):
+        hooks = repo / ".git" / "hooks"
+        if hooks.is_dir():
+            with open(str(hooks / "pre-commit"), "w", encoding="utf-8", newline="\n") as f:   # 3.8: write_text 에 newline 없음
+                f.write(PRE_COMMIT)
+            print("pre-commit hook (모델 파일 커밋 거부):", repo.name)
 
     # 3. 확인 (새 프로세스, 저장소 밖 폴더에서 — 방금 설치한 경로가 보이는지. 저장소 루트가 끼어들지 않게)
     out = subprocess.run([py, "-c", CHECK], cwd=str(ROOT.parent), capture_output=True, text=True)

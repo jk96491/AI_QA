@@ -6,7 +6,7 @@
 |---|---|
 | Python | **3.8** (프로젝트 venv `venv\`, 3.10+ 문법 금지) |
 | 패키지 | numpy 1.22.4, PyTorch 1.8.1 CPU (`requirements.txt`) |
-| BT-QA SDK | **0.3.0** — `btqa_game`(게임 쪽 서버) + `btqa_play`(플레이 모드 LLM 클라이언트). 표준 라이브러리만 |
+| BT-QA SDK | **0.4.0** — `btqa_game`(게임 쪽 서버) + `btqa_play`(플레이 모드 LLM 클라이언트). 표준 라이브러리만 |
 | git | SDK clone 용 |
 | Unity 빌드 | 선택 — 없어도 Python 게임 대역(`game_sim`)으로 전부 돈다 |
 
@@ -20,13 +20,13 @@ venv\Scripts\python.exe run/run_setup_sdk.py               # SDK clone + 편집 
 venv\Scripts\python.exe -m unittest discover -s tests -t . # 전부 OK 면 끝
 ```
 
-`run/run_setup_sdk.py` 는 여러 번 실행해도 된다. 마지막에 `[OK]` 4줄 + "완료" 가 나오면 성공:
+`run/run_setup_sdk.py` 는 여러 번 실행해도 된다. 두 레포에 **모델 파일 커밋 거부 pre-commit hook** 도 설치한다 (원본·증류 모델은 절대 커밋하지 않는다). 마지막에 `[OK]` 4줄 + "완료" 가 나오면 성공:
 
 ```
 [OK] btqa_game ← ...\AI_QA\btqa_sdk\python
 [OK] btqa_play ← ...\AI_QA\btqa_sdk\python
-[OK] SDK 0.3.0 (btqa_play 0.3.0), 밸런스 프로토콜 1.4, 플레이 프로토콜 0.3
-[OK] Unity 패키지 사본 0.3.0
+[OK] SDK 0.4.0 (btqa_play 0.4.0), 밸런스 프로토콜 1.4, 플레이 프로토콜 0.3
+[OK] Unity 패키지 사본 0.4.0
 ```
 
 ## 2. 직접 하기 (스크립트가 하는 일)

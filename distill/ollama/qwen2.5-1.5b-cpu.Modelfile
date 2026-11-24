@@ -1,0 +1,5 @@
+FROM qwen2.5:1.5b
+# CPU 추론 전용 (사용자 결정: 플레이는 CPU). GPU 레이어 0, 문맥 8192 (system 고정부 + 한 단계 입력)
+PARAMETER num_gpu 0
+PARAMETER num_ctx 8192
+PARAMETER temperature 0

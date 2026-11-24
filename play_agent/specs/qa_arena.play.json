@@ -41,5 +41,6 @@
     "system_prompt": "이 게임의 비전투 부분(이동·대화·퀘스트·아이템·UI)을 플레이한다.\n\n관찰:\n- player: 지역·위치·체력·골드·퀵슬롯·상태\n- quests: 진행 중인 퀘스트와 목표 (progress [현재, 목표], hint_targets = 관련 엔티티 id). state=ready 는 반납만 남은 것\n- entities: 지금 보이는 것만 (시야 밖은 없다). marker: quest_available / quest_turn_in / objective\n- screen.modal: 입력을 막는 창 (dialog / quests / inventory / shop / tip). screen.ui: 클릭 가능한 UI 요소 (interactable)\n- events: 직전 이후 일어난 일\n\n규칙:\n- 상호작용은 먼저 move_to 로 다가간 뒤 interact. 보이지 않는 대상은 근처 좌표나 지역 입구로 먼저 간다.\n- 창(modal)이 열려 있으면 그 창의 버튼으로 진행하거나 닫는다. interactable:false 버튼은 가려졌거나 비활성이다 — 가린 창부터 처리한다.\n- 적에게 다가가거나 engage 하면 학습된 전투 AI 가 싸운다. 전투 물약은 퀵슬롯에 등록한 인벤토리 물약이다. 지면 체크포인트에서 부활하니 다시 시도할 수 있다.\n- 게임 버그로 보이는 것은 finish 의 blocked 에 UI id·메시지를 포함해 적는다.",
     "default_goal": "튜토리얼 퀘스트를 모두 끝까지 완료하라 (진행 중인 퀘스트가 없어질 때까지)."
   },
-  "progress_keys": ["quests", "player.zone", "inventory", "player.gold", "player.quickslots"]
+  "progress_keys": ["quests", "player.zone", "inventory", "player.gold", "player.quickslots"],
+  "observation_drop": ["hidden_included", "game_time"]
 }

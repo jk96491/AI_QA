@@ -51,6 +51,8 @@ Claude Code 에게는 "relay 를 띄우고 step 으로 튜토리얼을 플레이
 
 ### B. 로컬 LLM
 
+> 작은 모델(0.5B~3B)을 CPU 로: `--tool-mode json --stateless` (출력 JSON 강제 + 단계마다 새 대화). 증류 계획 `docs/DISTILL.md`.
+
 1. 서버 설치: [Ollama](https://ollama.com) (기본 `http://localhost:11434/v1`) 또는 LM Studio(서버 켜기, `http://localhost:1234/v1`), llama.cpp `llama-server`, vLLM 도 같은 방식.
 2. **도구 호출(function calling)을 지원하는 모델**을 받는다. 예: `ollama pull qwen2.5:14b` (12GB GPU 에 4bit 로 들어가는 크기). 작은 모델일수록 도구 인자를 틀리거나 같은 행동을 반복하기 쉽다 → 진척 없음 상한(`no_progress`)이 멈춘다.
 3. 실행 (프로젝트 venv 3.8 그대로, 추가 설치 없음):
