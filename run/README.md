@@ -24,6 +24,8 @@
 | 09 실험 E0~E7 | `run_experiment.py` | `EXPERIMENT`, `QUICK` 선택 |
 | 10 게임 대역 서버 | `run_game_server.py` | 게임 대역을 포트에 띄워 둠 (■ 로 정지) |
 | 11 IMPALA 액터 | `run_actor.py` | external 모드 학습기에 접속하는 액터 1개 (여러 번 실행 가능) |
+| **15 SDK 설치·업데이트** | `run_setup_sdk.py` | BT-QA SDK(별도 레포 btqa_sdk) clone + venv 편집 설치 + 확인. 처음 받았을 때·SDK 갱신 때 (`UPDATE = True` 면 git pull). 안내 `docs/INSTALL.md` |
+| (구성 없음) | `run_sync_sdk.py` | SDK → 사본(Unity 패키지·계약 문서) 갱신 |
 
 ## Unity 빌드로 실행 / 화면으로 보기
 

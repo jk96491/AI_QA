@@ -10,7 +10,7 @@ SDK 가이드·변경 이력·자체 테스트는 SDK 레포에 있다 (`README.
 | `python/btqa_game/` | `game_sim` (서버·세션·정의서 선언·검증). `python -m btqa_game check --game HOST:PORT` |
 | `python/btqa_play/` | `play_agent` (플레이 모드 LLM 클라이언트 — 그 위에 로드아웃·전투 응답기). `python -m btqa_play tools --game HOST:PORT` |
 
-설치 (한 번, 이 저장소 안에 clone — `.gitignore` 로 제외됨):
+설치 (한 번, 이 저장소 안에 clone — `.gitignore` 로 제외됨). 한 번에 하려면 `venv\Scripts\python.exe run/run_setup_sdk.py`, 자세한 안내·문제 해결은 **`docs/INSTALL.md`**:
 
 ```bash
 git clone https://github.com/jk96491/btqa_sdk.git btqa_sdk

@@ -116,10 +116,11 @@ the Unity package and the protocol documents are vendored copies (`run/run_sync_
 
 Requirements: Python 3.8+, `numpy`, `torch` (CPU). The Unity build is optional — the Python game runs everything.
 
+Install guide (Korean, with troubleshooting): [`docs/INSTALL.md`](docs/INSTALL.md).
+
 ```bash
 pip install -r requirements.txt
-git clone https://github.com/jk96491/btqa_sdk.git btqa_sdk
-pip install --no-deps --no-build-isolation -e ./btqa_sdk   # SDK (btqa_game, btqa_play)
+python run/run_setup_sdk.py                                # clones btqa_sdk into ./btqa_sdk, editable install, checks
 python -m unittest discover -s tests -t .                  # tests
 python -m balance_qa check-game                            # protocol conformance (Python game)
 python -m balance_qa --workers 4 optimize --cls warrior --persona stable --budget 3000          # CMA-ES

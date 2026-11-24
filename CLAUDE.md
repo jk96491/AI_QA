@@ -42,6 +42,7 @@
 ## 명령
 
 ```bash
+venv\Scripts\python.exe run/run_setup_sdk.py           # 처음·SDK 갱신: btqa_sdk clone + 편집 설치 + 확인 (docs/INSTALL.md, PyCharm 15)
 python -m unittest discover -s tests -t .              # 전체 테스트 (game / learner / integration / independence)
 venv\Scripts\python.exe run/run_sync_sdk.py [--check] [--sdk <SDK 레포 경로>]   # SDK → 사본 (Unity 패키지·docs/PROTOCOL.md·docs/PLAY_PROTOCOL.md). Python 은 btqa_sdk 직접 참조
 python -m btqa_game check --game 127.0.0.1:7777        # SDK 적합성 검사 (torch 없이, check-game 과 같은 항목)

@@ -23,8 +23,12 @@ tests/        game / learner / integration / independence
 
 ## 설치
 
+자세한 안내·문제 해결: **[`docs/INSTALL.md`](INSTALL.md)**
+
 ```bash
-pip install -r requirements.txt   # numpy + PyTorch CPU (Python 3.8+)
+python -m venv venv                                        # Python 3.8
+venv\Scripts\python.exe -m pip install -r requirements.txt # numpy + PyTorch CPU
+venv\Scripts\python.exe run/run_setup_sdk.py               # BT-QA SDK (별도 레포 btqa_sdk) clone + 편집 설치 + 확인
 ```
 
 ## 빠른 시작

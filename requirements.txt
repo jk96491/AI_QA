@@ -4,7 +4,9 @@
 -f https://download.pytorch.org/whl/torch_stable.html
 numpy==1.22.4
 torch==1.8.1+cpu
-# BT-QA SDK (btqa_game·btqa_play) = 별도 레포 btqa_sdk 를 직접 참조 (사본 없음). 먼저 이 저장소 안에 clone:
+# BT-QA SDK (btqa_game·btqa_play) = 별도 레포 btqa_sdk 를 직접 참조 (사본 없음). 설치 안내 docs/INSTALL.md
+#   한 번에: venv\Scripts\python.exe run/run_setup_sdk.py   (아래 두 줄 + 확인)
+# 직접: 먼저 이 저장소 안에 clone
 #   git clone https://github.com/jk96491/btqa_sdk.git btqa_sdk
 # setuptools < 64 라 편집 설치는 --no-build-isolation 필요:
 #   venv\Scripts\python.exe -m pip install --no-deps --no-build-isolation -e ./btqa_sdk
