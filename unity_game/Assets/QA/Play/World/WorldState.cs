@@ -684,6 +684,25 @@ namespace Qa.Play.World
             finally { _updating = false; }
         }
 
+        /// <summary>퀘스트 마커로 위치를 아는 대상 (0.8.4): 진행 중(active) 퀘스트의 완료 안 된 목표(반납 제외)의 target·hint_targets,
+        /// 반납 가능(ready) 퀘스트의 반납 목표 target·hint_targets. 같은 지역 판정은 호출 쪽 (지금 지역의 엔티티만 본다).</summary>
+        public bool IsQuestMarkerTarget(string entityId)
+        {
+            foreach (var q in _quests)
+            {
+                var st = QuestStateOf(q);
+                if (st != QuestStates.Active && st != QuestStates.Ready) continue;
+                for (int i = 0; i < q.Def.Objectives.Count; i++)
+                {
+                    var o = q.Def.Objectives[i];
+                    if (Progress(q, i) >= Target(q, i)) continue;
+                    if ((o.Kind == "turn_in") != (st == QuestStates.Ready)) continue;
+                    if (o.Target == entityId || Array.IndexOf(o.HintTargets, entityId) >= 0) return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>화면의 퀘스트 마커와 같은 정보: quest_available / quest_turn_in / objective / null.</summary>
         public string MarkerFor(string entityId)
         {

@@ -66,12 +66,16 @@ namespace Qa.Play.Perception
         bool TagPerceivable(QaTag t, Plane[] fr) =>
             t.gameObject.activeInHierarchy && (t.alwaysKnown || Visibility.InFrustum(fr, t));
 
-        /// <summary>행동용: 엔티티가 지금 지각 가능한가.</summary>
-        public bool EntityPerceivable(string id)
+        /// <summary>시야 밖이어도 퀘스트 마커로 위치를 아는 엔티티 (0.8.4, 관찰 known:"marker"). 태그는 지금 지역 것만 있다.</summary>
+        static bool MarkerKnown(QaTag t, WorldState w) =>
+            w != null && t.gameObject.activeInHierarchy && w.IsQuestMarkerTarget(t.id);
+
+        /// <summary>행동용: 엔티티가 지금 지각 가능한가 (시야·always_known·퀘스트 마커).</summary>
+        public bool EntityPerceivable(string id, WorldState w = null)
         {
             if (_omniscient) return true;
             var t = FindTag(id);
-            return t != null && TagPerceivable(t, Visibility.Frustum(_scene.PlayerPosition));
+            return t != null && (TagPerceivable(t, Visibility.Frustum(_scene.PlayerPosition)) || MarkerKnown(t, w));
         }
 
         /// <summary>v0.4: screen.ui[].rect·entities[].screen_pos (가상 화면 1280×720) 를 싣는다.</summary>
@@ -159,7 +163,8 @@ namespace Qa.Play.Perception
             {
                 if (t == null || t.role == QaRole.Ui) continue;
                 bool ok = TagPerceivable(t, fr);
-                if (!ok && !_omniscient) continue;
+                bool byMarker = !ok && MarkerKnown(t, w);
+                if (!ok && !byMarker && !_omniscient) continue;
                 var p = t.transform.position;
                 double d = GridPath.Dist(w.PlayerX, w.PlayerZ, p.x, p.z);
                 var o = new JObject
@@ -172,7 +177,8 @@ namespace Qa.Play.Perception
                 if (mk != null) o["marker"] = mk;
                 if (IncludeCoords && ok && VirtualScreen.EntityScreen(t, _scene.PlayerPosition, out var sc, out _))
                     o["screen_pos"] = new JArray(Mathf.RoundToInt(sc.x), Mathf.RoundToInt(sc.y));
-                if (!ok) o["hidden"] = true;
+                if (byMarker) o["known"] = "marker";   // 시야 밖, 퀘스트 마커로만 아는 위치 (move_to 가능)
+                else if (!ok) o["hidden"] = true;
                 list.Add((d, t.id, o));
             }
             list.Sort((a, b) => a.d != b.d ? a.d.CompareTo(b.d) : string.CompareOrdinal(a.id, b.id));

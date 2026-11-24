@@ -523,7 +523,7 @@ namespace Qa.Play.Server
             {
                 Act("move_to", new JObject { ["target"] = "entity_id | null", ["pos"] = "[x,y,z] | null" },
                     "엔티티(target) 또는 좌표(pos=[x,y,z]) 로 걸어간다. 둘 중 하나만 준다. 대상의 상호작용 거리(" + range + ") 안에 들어가면 done. " +
-                    "시야 밖 대상은 not_visible — 근처 좌표나 지역 입구로 먼저 간다. 길이 없으면 unreachable, 창(modal)이 열려 있으면 blocked_by_modal. " +
+                    "시야 밖 대상은 not_visible — 근처 좌표나 지역 입구로 먼저 간다 (entities 에 known:\"marker\" 로 있는 퀘스트 대상은 시야 밖이어도 바로 갈 수 있다). 길이 없으면 unreachable, 창(modal)이 열려 있으면 blocked_by_modal. " +
                     "이동 중 적의 어그로 범위에 들어가면 전투가 자동으로 시작되고 학습된 BT 가 싸운다 (interrupted, 결과는 combats).",
                     new JObject
                     {
@@ -568,7 +568,7 @@ namespace Qa.Play.Server
                 "관찰:\n" +
                 "- player: 지역·위치·체력·골드·퀵슬롯·상태\n" +
                 "- quests: 진행 중인 퀘스트와 목표 (progress [현재, 목표], hint_targets = 관련 엔티티 id). state=ready 는 반납만 남은 것\n" +
-                "- entities: 지금 보이는 것만 (시야 밖은 없다). marker: quest_available / quest_turn_in / objective\n" +
+                "- entities: 지금 보이는 것 + 진행 중 퀘스트 목표의 대상 (같은 지역이면 시야 밖이어도 known:\"marker\" — 위치를 알아 move_to 가능). marker: quest_available / quest_turn_in / objective\n" +
                 "- screen.modal: 입력을 막는 창 (dialog / quests / inventory / shop / tip). screen.ui: 클릭 가능한 UI 요소 (interactable)\n" +
                 "- events: 직전 이후 일어난 일 (wait.until 에 쓰는 kind)\n\n" +
                 "규칙:\n" +
@@ -772,7 +772,7 @@ namespace Qa.Play.Server
             _actSeq = msg["seq"];
             _actName = name;
             _log.Add(_world.Time, "act", new JObject { ["seq"] = _actSeq?.DeepClone(), ["action"] = name, ["args"] = args.DeepClone() });
-            var ctx = new ActionContext { World = _world, Perceivable = _semantic.EntityPerceivable, Scene = _scene };
+            var ctx = new ActionContext { World = _world, Perceivable = id => _semantic.EntityPerceivable(id, _world), Scene = _scene };
             _acc = 0;
             _runner = new ActionRunner(ctx, a, args);   // ActionArgException → bad_request
             if (_runner.Finished) ScheduleActionResult();

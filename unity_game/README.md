@@ -6,7 +6,7 @@
 - **Unity**: 6000.0.60f1 (Unity 6 LTS), 스크립팅 백엔드 Mono
 - **패키지**: `com.unity.nuget.newtonsoft-json` 3.2.1
 - **빌드 결과**: `Build/QaArena.exe`
-- **현재 버전 0.8.3** (2026-11-24) — 0.8.3 밸런스 프로토콜 1.4 `initial_state`(hp_ratio·potions_ratio)·플레이 `play_description` 행동 description/schema·pilot_guide·progress_keys 선언·화면 겹침 H1/H3/H4 수정 (밸런스 데이터 변경 없음). 이전: 0.7.1 플레이 v0.3(pilot_note·전투 물약 = 인벤토리), 0.8.0 늑대왕 2D 아레나 패턴, 0.8.1 BT 블록 5개·직업별 스킬 7~8개·스킬 바, 0.8.2 플레이 v0.4 raw 입력(computer use, hello 0.3 도 받음)·월드 이름표. 보고서 `PLAY_MODE_REPORT.md`·`BOSS_PATTERN_REPORT.md`·`SKILL_BT_REPORT.md`
+- **현재 버전 0.8.4** (2026-11-24) — 0.8.4 진행 중 퀘스트 목표 대상은 같은 지역이면 시야 밖이어도 관찰 entities 에 `known:"marker"` 로 넣고 move_to 가능 (`OFFSCREEN_TARGET_REQUEST.md`). 0.8.3 밸런스 프로토콜 1.4 `initial_state`(hp_ratio·potions_ratio)·플레이 `play_description` 행동 description/schema·pilot_guide·progress_keys 선언·화면 겹침 H1/H3/H4 수정 (밸런스 데이터 변경 없음). 이전: 0.7.1 플레이 v0.3(pilot_note·전투 물약 = 인벤토리), 0.8.0 늑대왕 2D 아레나 패턴, 0.8.1 BT 블록 5개·직업별 스킬 7~8개·스킬 바, 0.8.2 플레이 v0.4 raw 입력(computer use, hello 0.3 도 받음)·월드 이름표. 보고서 `PLAY_MODE_REPORT.md`·`BOSS_PATTERN_REPORT.md`·`SKILL_BT_REPORT.md`
 
 ## 에디터에서 쓰기
 
