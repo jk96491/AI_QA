@@ -20,12 +20,22 @@ from typing import Any, Dict, List
 from btqa_play.actions import action_text
 
 
+NEAR = 3.0   # QaArena 상호작용 거리 안 (move_to 뒤 거리 2.1~2.3, 교사 기록)
+
+
+def _near(d: float) -> str:
+    return "가까움 %.1f" % d if d <= NEAR else "멂 %.1f" % d
+
+
 def situation(user_text: str) -> str:
     d = json.loads(user_text)
     o = d.get("observation") or {}
     p = o.get("player") or {}
     parts: List[str] = [str(p.get("zone") or "?")]
     visible = {e.get("id") for e in o.get("entities") or []}
+    dist = {e.get("id"): e.get("distance") for e in o.get("entities") or []}
+    buttons = [u for u in (o.get("screen") or {}).get("ui") or []
+               if u.get("role") == "button" and u.get("interactable") is not False]
     for q in o.get("quests") or []:
         objs = [x for x in q.get("objectives") or [] if not x.get("done")]
         if q.get("state") == "ready" or not objs:
@@ -38,11 +48,21 @@ def situation(user_text: str) -> str:
             tg = list(ob.get("hint_targets") or [])
         if tg:   # r2 진단: 반납 대상이 다른 지역인데 그 id 로 가려 했다 → 대상이 이 지역에 보이는지 읽게 한다
             seen = [t for t in tg if t in visible]
-            parts.append("대상 %s 보임" % ",".join(seen) if seen else "대상 %s 이 지역에 없음" % ",".join(tg[:2]))
+            # r5 진단: 멀리 있는 상인에게 move_to 없이 talk → out_of_range 반복 → 거리(입력 entities[].distance)로 가까움/멂
+            seen_txt = ["%s(%s)" % (t, _near(dist.get(t))) if dist.get(t) is not None else t for t in seen[:3]]
+            parts.append("대상 %s 보임" % ",".join(seen_txt) if seen else "대상 %s 이 지역에 없음" % ",".join(tg[:2]))
+        elif objs:   # r3·r4 진단: 대상 표시 없는 목표("인벤토리에서 물약 등록")에서 버튼 대신 대화 반복 → 목표 글과 같은 글의 버튼
+            btn = [u for u in buttons if u.get("text") and str(u["text"]) in str(objs[0].get("text") or "")]
+            parts.append("목표 글 '%s' = 버튼 %s" % (btn[0]["text"], btn[0]["id"]) if btn else "대상 표시 없음")
     if not o.get("quests"):
         parts.append("진행 중 퀘스트 없음")
     modal = (o.get("screen") or {}).get("modal")
-    parts.append("창 %s" % modal if modal else "창 없음")
+    if modal:   # r7 진단: 인벤토리에서 "퀵슬롯 등록"이라 생각하고도 직전 버튼(물약 칸)을 반복 → 창 버튼의 글=id (선택 표시 ▶)
+        mb = [u for u in buttons if not str(u.get("id", "")).startswith("ui.hud.")]
+        parts.append("창 %s [%s]" % (modal, ", ".join(
+            "%s=%s" % (str(u.get("text") or "").replace("▶ ", "(선택) "), u["id"]) for u in mb[:6])))
+    else:
+        parts.append("창 없음")
     la = d.get("last_action")
     if la and (la.get("status") == "failed" or la.get("error")):
         parts.append("직전 실패 %s" % (la.get("reason") or la.get("error")))

@@ -1,0 +1,27 @@
+{
+  "base": "distill_out/r8/merged",
+  "pairs": 18,
+  "beta": 0.1,
+  "lr": 3e-05,
+  "epochs": 3,
+  "steps": [
+    {
+      "epoch": 0,
+      "loss": 0.6439,
+      "pref_acc": 0.722,
+      "seconds": 98.4
+    },
+    {
+      "epoch": 1,
+      "loss": 0.3039,
+      "pref_acc": 1.0,
+      "seconds": 197.2
+    },
+    {
+      "epoch": 2,
+      "loss": 0.1175,
+      "pref_acc": 1.0,
+      "seconds": 296.1
+    }
+  ]
+}

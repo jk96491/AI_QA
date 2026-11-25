@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional
 from _bootstrap import ROOT, setup
 
 # ===================== 설정 =====================
-MODEL = "qwen2.5-1.5b-cpu"   # Ollama 모델 이름 (CPU 전용 변형). 증류 모델이면 그 이름
+MODEL = "qa-qwen1.5b-r8"     # Ollama 모델 이름 (CPU 전용). 증류 r8 = 튜토리얼 5개 완주 (2026-11-25). 원본 비교는 "qwen2.5-1.5b-cpu"
 BASE = "qwen2.5:1.5b"        # MODEL 이 없을 때 CPU 전용 변형을 만들 원본 (ollama pull 로 받은 것)
 OLLAMA_URL = "http://localhost:11434"
 CLASS = "warrior"

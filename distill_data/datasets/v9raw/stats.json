@@ -1,0 +1,34 @@
+{
+  "format": "btqa-play-sft/1",
+  "inputs": [
+    "reports/distill/teacher.jsonl",
+    "reports/distill/dagger.jsonl",
+    "reports/distill/dagger2.jsonl",
+    "reports/distill/dagger3.jsonl"
+  ],
+  "read": 430,
+  "kept": 354,
+  "dropped": {
+    "duplicate": 76
+  },
+  "conflicting_inputs": 0,
+  "thought_variants": 185,
+  "runs": 11,
+  "val_runs": [
+    "relay-20261124-215705-s5"
+  ],
+  "train": 322,
+  "val": 32,
+  "tools": {
+    "move_to": 111,
+    "interact": 83,
+    "ui_click": 137,
+    "engage": 12,
+    "finish": 11
+  },
+  "mean_chars": {
+    "user": 1660.0,
+    "assistant": 90.6
+  },
+  "distinct_systems": 1
+}

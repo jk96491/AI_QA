@@ -25,11 +25,14 @@ def cmd_pairs(a: argparse.Namespace) -> int:
     from btqa_play.dataset import build_pairs
     st = build_pairs(a.inputs, a.out)
     rows = [json.loads(x) for x in Path(a.out).read_text(encoding="utf-8").splitlines() if x.strip()]
-    for r in rows:   # SFT(v3)와 같은 thought 형식: chosen 앞에 상황 읽기
-        c = json.loads(r["chosen"])
-        if not c["thought"].startswith("상황:"):
-            c["thought"] = "%s → %s" % (situation(r["prompt"][1]["content"]), c["thought"])
-        r["chosen"] = action_text(c["thought"], c["tool"], c["input"])
+    for r in rows:   # SFT 와 같은 thought 형식: 둘 다 앞에 지금 형식의 상황 읽기 (학생 답의 옛 접두는 바꾼다 —
+        sit = situation(r["prompt"][1]["content"])   # 접두가 다르면 DPO 가 행동이 아니라 접두 형식 차이를 배운다)
+        for key in ("chosen", "rejected"):
+            c = json.loads(r[key])
+            th = c.get("thought") or ""
+            if th.startswith("상황:"):
+                th = th.split("→", 1)[1].strip() if "→" in th else ""
+            r[key] = action_text("%s → %s" % (sit, th), c["tool"], c["input"])
     Path(a.out).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     print(json.dumps(st, ensure_ascii=False))
     return 0

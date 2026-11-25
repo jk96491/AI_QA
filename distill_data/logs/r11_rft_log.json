@@ -1,0 +1,485 @@
+{
+  "base": "distill_out/r8/merged",
+  "seeds": [
+    11
+  ],
+  "k": 4,
+  "lr": 1e-05,
+  "kl": 0.05,
+  "episodes": [
+    {
+      "seed": 11,
+      "steps": [
+        {
+          "t": 0,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.0
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 1,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "interact",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 2,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 3,
+          "rewards": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 4,
+          "rewards": [
+            0.0,
+            0.0,
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.0
+        },
+        {
+          "t": 5,
+          "rewards": [
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3
+          ],
+          "chosen": "interact",
+          "greedy_reward": 0.3
+        },
+        {
+          "t": 6,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 7,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "interact",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 8,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 9,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "interact",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 10,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            -1.0,
+            0.5
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 11,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "interact",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 12,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.0
+        },
+        {
+          "t": 13,
+          "rewards": [
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3
+          ],
+          "chosen": "interact",
+          "greedy_reward": 0.3
+        },
+        {
+          "t": 14,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 15,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.5
+          ],
+          "chosen": "interact",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 16,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 17,
+          "rewards": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 18,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.0
+        },
+        {
+          "t": 19,
+          "rewards": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 20,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.0
+        },
+        {
+          "t": 21,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 22,
+          "rewards": [
+            0.2,
+            0.0,
+            0.0,
+            0.2,
+            0.2
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 23,
+          "rewards": [
+            0.5,
+            0.5,
+            -1.0,
+            0.0,
+            -1.0
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 24,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "chosen": "interact",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 25,
+          "rewards": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 26,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 27,
+          "rewards": [
+            0.2,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 28,
+          "rewards": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 29,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.0
+        },
+        {
+          "t": 30,
+          "rewards": [
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3
+          ],
+          "chosen": "interact",
+          "greedy_reward": 0.3
+        },
+        {
+          "t": 31,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "engage",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 32,
+          "rewards": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.0
+        },
+        {
+          "t": 33,
+          "rewards": [
+            0.3,
+            0.3,
+            0.3,
+            0.3,
+            0.3
+          ],
+          "chosen": "interact",
+          "greedy_reward": 0.3
+        },
+        {
+          "t": 34,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "chosen": "move_to",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 35,
+          "rewards": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ],
+          "chosen": "interact",
+          "greedy_reward": 0.5
+        },
+        {
+          "t": 36,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 1.0
+        },
+        {
+          "t": 37,
+          "rewards": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ],
+          "chosen": "ui_click",
+          "greedy_reward": 0.2
+        },
+        {
+          "t": 38,
+          "rewards": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "chosen": "finish",
+          "greedy_reward": 1.0
+        }
+      ]
+    }
+  ],
+  "seconds": 2313.6
+}
