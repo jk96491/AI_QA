@@ -29,7 +29,7 @@ This project tries a different split:
 | Behavior structure (blocks, need functions) | Designers, in the game's BT | Design time |
 | Block weights `w` in `score = N(situation) × w` | **RL — the only thing it learns** | Once per fight, or at trigger points (boss HP 75/50/25 %) |
 | Moment-to-moment combat actions | The BT itself | Every 0.3 s |
-| Non-combat play (talk, shop, travel) | An LLM pilot (optional) | Rarely |
+| Non-combat play (talk, shop, travel) | An LLM pilot (optional) — down to a distilled 1.5B model on CPU | Rarely |
 
 Small, declared learning targets keep the policy interpretable (a handful of named weights), cheap to train, and
 reusable across games: the learning side never sees skills, stats or game code — only the declared parameters.
@@ -94,12 +94,44 @@ The measurement history across builds (see `docs/STATUS.md`, in Korean) is where
 - **Open:** hand-tuned mage reportedly clears 0 % against the wolf king. The next step is telling a parameter problem
   from a boss-design problem.
 
+## A 1.5B local model as the non-combat player
+
+The LLM pilot does not need a large model. A Claude Code session played the tutorial as the **teacher** (through
+`relay`, no API calls), and its decisions were distilled into **Qwen2.5-1.5B-Instruct** with LoRA on one RTX 3060.
+The student is stateless: it sees only the current observation and the result of its last action, and returns one JSON
+action. It runs as a 4-bit GGUF (941 MB) through Ollama, **CPU only**.
+
+![A distilled 1.5B model plays the tutorial from the village: quests, inventory, shop, the wolf king (fought by the learned BT), and the report](docs/media/distilled_play.gif)
+
+*Distilled model `r8`, CPU inference, waiting time between calls cut out (8 min 26 s of play → about 25 s here). The
+"QA player" panel shows what the model read from its input and why it chose each action. Combat is the learned BT.*
+
+| Model | Tutorial quests (of 5, seeds 1–5) | Notes |
+|---|---|---|
+| Qwen2.5-1.5B, no training | 0 | ignores the quest, repeats `talk` in an open dialog |
+| + SFT on 7 teacher games | 1 | invents progress ("collected 3 herbs") instead of reading it |
+| + situation-reading prefix, DAgger ×3, input cues | **5** | 41–43 actions, 0 % format errors, ~8 s per call on CPU |
+| + DPO / RFT (GRPO, the game as grader) | 0–3 | both made it worse at this data size; RFT also reward-hacked a repeated button click |
+
+- **What mattered most was not more data** but cues the model only has to *copy* from its input before deciding:
+  quest progress, whether the target is in this zone, distance (near/far), which button matches the objective text,
+  and the id of each button in an open window. The decision becomes a copying problem a small model can do.
+- **DAgger** found exactly where the student got stuck; the teacher labeled only those steps (the student was right on
+  93–95 % of its own steps).
+- **The inference device is part of the evaluation.** The same weights complete 5/5 on CPU but 1/5 on GPU: numeric
+  differences flip a near-tie early, and the run falls into a loop. One more DAgger round with the GPU student raised
+  that to 3/5.
+- The SDK keeps the pipeline game-agnostic. Game-specific pieces (the situation prefix, the RFT reward, loadout setup)
+  are plain functions in `play_agent`, passed to the SDK commands by name (`--prep play_agent.distill_prep:prep_sample`).
+  Model weights are never committed; the training data is (`distill_data/`). Details: [`docs/DISTILL.md`](docs/DISTILL.md) (Korean).
+
 ## Repository layout
 
 ```
 balance_qa/     learning platform: protocol client, CMA-ES / ES / IMPALA (PyTorch CPU), rewards, evaluation, reports
 btqa_sdk/       BT-QA SDK — separate repository, cloned here and installed editable (not committed)
-play_agent/     play-mode client (on top of the SDK's btqa_play): loadout from learned results, numpy policy runner, optional LLM pilot (bring your own LLM: Claude API, or any OpenAI-compatible server incl. local Ollama / LM Studio — see docs/LLM_SETUP.md)
+play_agent/     play-mode client (on top of the SDK's btqa_play): loadout from learned results, numpy policy runner, optional LLM pilot (bring your own LLM: Claude API, or any OpenAI-compatible server incl. local Ollama / LM Studio — see docs/LLM_SETUP.md), QaArena hooks for distillation (prep, reward)
+distill_data/   distillation data: teacher and DAgger records, datasets, training logs (no model files)
 game_sim/       Python reference game (BT, combat sim) — test double and reference implementation
 unity_game/     QaArena, the Unity test game (Unity 6000.0); SDK as embedded package Packages/com.btqa.game
 qa_specs/       personas
@@ -108,7 +140,8 @@ run/            one-click run scripts (also registered as PyCharm run configurat
 docs/           protocol (contract), play protocol, architecture, status — mostly Korean
 ```
 
-The SDK (Python `btqa_game` game side + `btqa_play` LLM play client, Unity package, protocols) is maintained separately at
+The SDK (Python `btqa_game` game side + `btqa_play` LLM play client + optional `btqa_distill` LoRA training/export,
+Unity package, protocols) is maintained separately at
 **[jk96491/btqa_sdk](https://github.com/jk96491/btqa_sdk)**. Python uses it directly (editable install, see Quick start);
 the Unity package and the protocol documents are vendored copies (`run/run_sync_sdk.py`), and a test checks they match.
 
@@ -134,7 +167,12 @@ With the Unity build (`unity_game/Build/QaArena.exe`, built with `unity_game/QaT
 python run/run_full_cycle.py      # conformance → baseline → CMA-ES → IMPALA → report (set GAME_CMD = UNITY)
 python run/run_watch.py           # replay saved results side by side in Unity windows (top GIF)
 python run/run_watch_play.py      # play mode from the village, combat by the learned BT (second GIF)
+python run/run_play_local.py      # a local LLM (Ollama, CPU) plays from the village — set MODEL to a distilled model
+python run/run_record_play.py     # same, recorded to mp4 / gif with the waiting time cut out (Windows)
 ```
+
+Distillation (teacher records → dataset → LoRA → GGUF → Ollama → evaluation) is in [`docs/DISTILL.md`](docs/DISTILL.md) §3;
+training needs a separate Python ≥ 3.10 venv with CUDA PyTorch (`btqa_sdk/docs/DISTILL_SDK.md`).
 
 To connect your own game, implement `IEpisodeHost` with the SDK and pass `python -m btqa_game check --game host:port`.
 
@@ -149,9 +187,10 @@ To connect your own game, implement `IEpisodeHost` with the SDK and pass `python
   policy is not yet clearly better than CMA-ES's static weights here. Showing where state-dependent weights matter
   (experiment E7) is open work. Scaling all weights by the same factor doesn't change behavior; this redundancy is left
   as is.
-- **LLM play:** each user plugs in their own LLM (`docs/LLM_SETUP.md`). The first live play-through (2026-11-23) was
-  done by a Claude Code session acting as the player through `play_agent relay` (no API calls); all 5 tutorial quests
-  completed. The API / local-LLM pilot loop is tested against fake backends but not yet run live.
+- **LLM play:** each user plugs in their own LLM (`docs/LLM_SETUP.md`). A Claude Code session (via `relay`, no API
+  calls) and the distilled 1.5B model (Ollama, CPU) both complete the 5 tutorial quests. The distilled model covers only
+  this tutorial, was trained on one class (warrior), and is fragile: the same weights fail on GPU, and DPO/RFT on top of
+  it made it worse. The Claude API backend is tested against fakes but not run live (no API spend).
 - **Not yet done:** full-scale runs of
   experiments E1–E7, and a cost comparison against an LLM-only player.
 

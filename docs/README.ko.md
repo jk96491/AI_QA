@@ -90,6 +90,13 @@ python -m balance_qa --workers 8 --game-cmd "Build/Game.exe -batchmode -nographi
 - Claude API: `--llm anthropic` (Python ≥ 3.10 venv, 키는 환경변수 `ANTHROPIC_API_KEY`)
 - 설정은 `llm.json`(git 에 안 올라감, 예시 `btqa_sdk/python/btqa_play/llm.example.json`), PyCharm `14 LLM 플레이 (각자 LLM)`
 
+**증류한 작은 모델 (CPU)**: Claude Code 세션(교사)의 플레이를 Qwen2.5-1.5B-Instruct 에 LoRA 로 증류 → 4bit GGUF(941MB) 를 Ollama CPU 로 실행.
+최종 `qa-qwen1.5b-r8` 이 튜토리얼 퀘스트 5개를 seed 1~5 모두 완주 (원본 0/5, 호출당 약 8초). 효과가 컸던 것은 입력에서 옮겨 적기만 하면 되는
+상황 읽기 단서와 DAgger 3회. DPO·RFT 는 이 규모에서 후퇴, 같은 가중치도 GPU 추론에서는 1/5. 상세 `docs/DISTILL.md`.
+
+- 보기 `run/run_play_local.py` (PyCharm `16`), 녹화 `run/run_record_play.py` (PyCharm `17`, mp4·대기 제거 mp4·gif)
+- 학습 데이터 백업 `distill_data/` (커밋), 모델 파일은 절대 커밋하지 않는다
+
 ## 실험 (설계 문서 10장)
 
 | 스크립트 | 가설 | 내용 |
