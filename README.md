@@ -178,21 +178,24 @@ To connect your own game, implement `IEpisodeHost` with the SDK and pass `python
 
 ## Limitations
 
-- **Toy environment.** 1-vs-1 boss fights on a one-dimensional distance axis, three classes. Read the numbers as trends
-  and relative sizes, not as claims about a real game.
+- **Toy environment.** 1-vs-1 boss fights, three classes, one small tutorial. The wolf king has a 2D arena with
+  telegraphed patterns (falling rocks, poison pools, bullet fans, charges); the arena boss and the Python reference game
+  still use a one-dimensional distance axis. Read the numbers as trends and relative sizes, not as claims about a real
+  game. The results table above is from build 0.7.0 (three blocks); later builds are tracked in `docs/STATUS.md`.
 - **Integration prerequisite.** The game must run its combat headless, deterministically and fast (milliseconds per
   episode). Separating combat logic from rendering is the main cost of adopting this. In QaArena, the game-specific
   glue is one ~100-line class.
-- **Few learning targets by design.** With three weights a grid search is a fair baseline, and IMPALA's trigger-time
-  policy is not yet clearly better than CMA-ES's static weights here. Showing where state-dependent weights matter
-  (experiment E7) is open work. Scaling all weights by the same factor doesn't change behavior; this redundancy is left
-  as is.
-- **LLM play:** each user plugs in their own LLM (`docs/LLM_SETUP.md`). A Claude Code session (via `relay`, no API
-  calls) and the distilled 1.5B model (Ollama, CPU) both complete the 5 tutorial quests. The distilled model covers only
-  this tutorial, was trained on one class (warrior), and is fragile: the same weights fail on GPU, and DPO/RFT on top of
-  it made it worse. The Claude API backend is tested against fakes but not run live (no API spend).
-- **Not yet done:** full-scale runs of
-  experiments E1–E7, and a cost comparison against an LLM-only player.
+- **Few learning targets by design.** Five block weights per class since build 0.8.1, so a grid search or CMA-ES is a
+  strong baseline. IMPALA is now a contextual bandit (weights chosen once per fight from the starting state); on the
+  Python game it did not beat one global CMA-ES weight set at the same episode budget (experiment E8). The Unity wolf
+  king rerun is pending. Scaling all weights by the same factor doesn't change behavior; this redundancy is left as is.
+- **LLM play.** Each user plugs in their own LLM (`docs/LLM_SETUP.md`). A Claude Code session (via `relay`, no API
+  calls) and the distilled 1.5B model (Ollama, CPU) both complete the 5 tutorial quests. The distilled model learned
+  from 7 teacher games (warrior, archer, mage) but was evaluated only as a warrior, covers only this tutorial, and is
+  fragile: the same weights complete 1/5 on GPU, and DPO/RFT on top of it made it worse. The Claude API backend is
+  tested against fake transports only (no API spend).
+- **Not yet done:** full-scale runs of experiments E1–E8 (only reduced runs so far), and a cost comparison against an
+  LLM-only player.
 
 ## Background
 
