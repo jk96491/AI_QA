@@ -13,7 +13,7 @@
 | `game_sim/` | **게임 대역**: BT·전투·직업/보스 데이터. 서버는 SDK `btqa_game` 으로 구현 (`GameSimHost`). 추후 **Unity 빌드로 교체** | `balance_qa`, `torch` import |
 | `balance_qa/` | **학습 플랫폼** (SDK 를 쓰는 쪽, 계약만 따름): 프로토콜 클라이언트·최적화(torch)·보상·평가·리포트 | `game_sim`, `btqa_game` import |
 | `docs/PROTOCOL.md` | 둘 사이의 유일한 계약 (TCP JSON Lines v1.4) | — |
-| `play_agent/` | **플레이 모드 클라이언트 (AI_QA 쪽)**: SDK `btqa_play` 위에 LoadoutBuilder·CombatResponder/BanditPolicy(IMPALA numpy)·relay/CLI·check-play(QaArena). 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch`, `btqa_game` import |
+| `play_agent/` | **플레이 모드 클라이언트 (AI_QA 쪽)**: SDK `btqa_play` 위에 LoadoutBuilder·CombatResponder/BanditPolicy(IMPALA numpy)·relay/CLI·check-play(QaArena). 학습 결과 파일만 읽음 | `game_sim`, `balance_qa`, `torch`, `btqa_game`, `btqa_distill` import (증류용 게임 함수는 SDK 명령에 훅 이름으로) |
 | `unity_game/` | **실제 테스트 게임 (Unity 프로젝트, 다른 에이전트가 제작 중)**. 제작 규칙 `unity_game/AGENT_GUIDE.md` | 학습 쪽 코드에서 import·경로 의존 금지 (`--game` / `--game-cmd` 로만 연결) |
 
 - `game_sim/` 은 Unity 게임이 생긴 뒤에도 **참조 구현 + 테스트용 가짜 게임**으로 유지한다 (사용자 결정). 지우지 않는다.
@@ -70,6 +70,7 @@ python -m experiments.e1_tuning_bias --workers 4 [--quick] [--game ... | --game-
 
 **학습 결과 화면으로 보기**: `venv\Scripts\python.exe run/run_watch.py` (PyCharm `00c`) — 학습 없이 reports/ 최근 CMA-ES·IMPALA 결과와 손 튜닝을 같은 seed 로 Unity 창 3개에 나란히 재생.
 **로컬 LLM 플레이 화면으로 보기**: `venv\Scripts\python.exe run/run_play_local.py` (PyCharm `16`) — Ollama 작은 모델(CPU 전용 변형)이 마을부터 플레이, 콘솔에 단계별 행동·생각. 증류 모델은 `MODEL` 에.
+**로컬 LLM 플레이 녹화**: `venv\Scripts\python.exe run/run_record_play.py --model qa-qwen1.5b-r8` (PyCharm `17`, Windows) — 게임 창만 mp4(원본)·대기 제거 mp4·gif 로 `reports/recordings/`. 증류 명령 한 바퀴는 `docs/DISTILL.md` 3장 (게임 고유 처리는 `play_agent.distill_prep`/`distill_reward` 함수를 SDK 명령에 `--prep`·`--reward` 훅으로).
 **플레이 모드 화면으로 보기**: `venv\Scripts\python.exe run/run_watch_play.py` (PyCharm `00d`) — 마을에서 시작해 튜토리얼 5개를 고정 행동열로 진행, 전투는 최근 학습 결과(forest_wolf_king) 로드아웃의 BT. LLM 없이.
 **새 Unity 빌드 측정**: `venv\Scripts\python.exe run/run_measure_build.py` (적합성 + 손튜닝 기준선 + CMA-ES + IMPALA 표) → `docs/STATUS.md` 3장 표에 한 줄 추가.
 **전체 사이클 점검**: `venv\Scripts\python.exe run/run_full_cycle.py` (적합성→describe→기준선→CMA-ES→params 재사용→IMPALA→리포트). 현재 최우선 목표는 성능이 아니라 이 사이클이 끊김 없이 도는 것 (사용자 우선순위).

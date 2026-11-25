@@ -6,9 +6,15 @@ r1(2026-11-24) 진단: 1.5B 학생이 입력의 퀘스트 진행도(약초 0/3)�
    학생은 먼저 입력에서 값을 옮겨 적고(작은 모델도 잘한다), 그다음 행동을 고르게 된다.
 
 관찰 필드(player.zone, quests[].objectives[].progress, screen.modal)는 플레이 프로토콜 4.5 것이지만 "퀘스트 진행이 판단의 핵심"이라는
-것은 이 게임(튜토리얼) 판단이라 SDK 가 아니라 여기 둔다.
+것은 이 게임(튜토리얼) 판단이라 SDK 가 아니라 여기 둔다. SDK 에는 함수 이름만 넘긴다 (SDK 는 이 패키지를 import 하지 않는다):
 
-    venv\\Scripts\\python.exe -m play_agent.distill_prep distill_out/data/v2 distill_out/data/v3
+    venv\\Scripts\\python.exe -m btqa_play dataset <기록...> --out distill_out/data/v11 --val-runs 215705-s5 \\
+        --correction-weight 3 --prep play_agent.distill_prep:prep_sample
+    venv\\Scripts\\python.exe -m btqa_play pairs <교정 기록...> --out distill_out/data/pairs.jsonl --prep play_agent.distill_prep:prep_pair
+    venv\\Scripts\\python.exe -m play_agent.distill_prep <train/val 폴더> <출력 폴더>   # 이미 만든 데이터셋에 덧붙이기
+
+접두는 **항상 입력에서 다시 만든다** — 기록의 생각 문장에 접두가 이미 있으면 (학생 제안을 승인한 단계 등) 떼고 다시 붙인다.
+학생이 접두를 잘못 옮겨 적은 채 승인돼도 (r8 GPU: 약초 1/3 에 "목표 완료") 정답 데이터에는 입력 그대로의 상황이 들어간다.
 """
 from __future__ import annotations
 
@@ -69,13 +75,27 @@ def situation(user_text: str) -> str:
     return "상황: " + " · ".join(parts)
 
 
+def _with_situation(user_text: str, action_json: str) -> str:
+    a = json.loads(action_json)
+    th = a.get("thought") or ""
+    if th.startswith("상황:"):
+        th = th.split("→", 1)[1].strip() if "→" in th else ""
+    return action_text("%s → %s" % (situation(user_text), th), a["tool"], a["input"])
+
+
 def prep_sample(s: Dict[str, Any]) -> Dict[str, Any]:
-    target = json.loads(s["messages"][-1]["content"])
-    th = target.get("thought") or ""
-    if not th.startswith("상황:"):
-        th = "%s → %s" % (situation(s["messages"][1]["content"]), th)
+    """SFT 샘플 (btqa-play-sft/1) → 목표 thought 앞에 상황 읽기. btqa_play dataset --prep 훅."""
     out = dict(s)
-    out["messages"] = s["messages"][:-1] + [{"role": "assistant", "content": action_text(th, target["tool"], target["input"])}]
+    out["messages"] = s["messages"][:-1] + [{"role": "assistant", "content": _with_situation(s["messages"][1]["content"],
+                                                                                              s["messages"][-1]["content"])}]
+    return out
+
+
+def prep_pair(r: Dict[str, Any]) -> Dict[str, Any]:
+    """DPO 쌍 (btqa-play-pref/1) → chosen·rejected 모두 같은 형식의 상황 접두 (형식이 다르면 DPO 가 형식 차이를 배운다)."""
+    out = dict(r)
+    for key in ("chosen", "rejected"):
+        out[key] = _with_situation(r["prompt"][1]["content"], r[key])
     return out
 
 

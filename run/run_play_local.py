@@ -66,6 +66,18 @@ def ensure_model() -> Optional[str]:
     return None
 
 
+def device() -> str:
+    """실제로 올라간 장치 (ollama ps 의 PROCESSOR, 모델 이름이 아니라). 모르면 '?'"""
+    try:
+        with urllib.request.urlopen(OLLAMA_URL + "/api/ps", timeout=3) as r:
+            for m in json.loads(r.read().decode("utf-8")).get("models", []):
+                if m.get("name") in (MODEL, MODEL + ":latest"):
+                    return "GPU" if m.get("size_vram") else "CPU"
+    except OSError:
+        pass
+    return "?"
+
+
 def port_open(port: int) -> bool:
     try:
         socket.create_connection(("127.0.0.1", port), timeout=0.5).close()
@@ -164,7 +176,7 @@ def main() -> int:
                     else:
                         c.set_loadout(lb.wire_entries(desc), persona=lb.persona())
                         bt = e.source
-            print("게임 %s %s | LLM %s (CPU) | 직업 %s, seed %d | 전투 BT: %s"
+            print("게임 %s %s | LLM %s | 직업 %s, seed %d | 전투 BT: %s"
                   % (desc.get("game"), desc.get("game_version"), MODEL, CLASS, SEED, bt))
             print(" 단계  호출   도구      인자                                             → 결과")
             obs = c.reset(seed=SEED, cls=CLASS)
@@ -183,9 +195,9 @@ def main() -> int:
                                                  ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         (out / "play_log.json").write_text(json.dumps(log, ensure_ascii=False), encoding="utf-8")
         lat = run.latency_s or [0.0]
-        print("\n끝: %s | 완료 퀘스트 %d/%d %s | 행동 %d, 형식 오류 %d | 호출당 %.1fs (CPU) | 기록 %s"
+        print("\n끝: %s | 완료 퀘스트 %d/%d %s | 행동 %d, 형식 오류 %d | 호출당 %.1fs (%s) | 기록 %s"
               % (run.end_reason, len(done), len(desc.get("quests") or []), done, run.actions, run.invalid_outputs,
-                 sum(lat) / len(lat), out))
+                 sum(lat) / len(lat), device(), out))
     finally:
         if proc is not None and CLOSE_GAME_AT_END:
             proc.terminate()

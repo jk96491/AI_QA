@@ -22,6 +22,8 @@
 | `datasets/v9raw`, `v9` | + DAgger 3 (교정 15개 3배, train 414) — r7 | `distill_out/data/` |
 | `datasets/v10raw`, `v10` | v9 + 창 버튼 글=id (선택 표시) — **r8 (최종, 5/5 완주)** | 〃 |
 | `datasets/pairs_v4.jsonl`, `pairs_v5.jsonl` | DAgger 1~3 쌍 18개 (v5 = v10 형식) — r9 DPO | 〃 |
-| `logs/` | r8 SFT·r9 DPO·r10/r11 RFT 학습 로그 (손실·보상, 가중치 아님) | `distill_out/r*/` |
+| `raw/dagger4.jsonl`, `dagger4b.jsonl` | DAgger 4 (r8 **GPU** 추론 학생, seed 1·2) 48·41단계 — GPU 에서 r8 이 약초 1/3 에 "목표 완료"로 착각 후 반복에 빠져서. `dagger4b` 는 그 실수를 일부러 통과시켜 복구 상태를 모음. 교사가 잘못 승인한 9개는 `edited` | `reports/distill/` |
+| `datasets/v11raw`, `v11` | v10 + DAgger 4 (교정 28개 3배, train 550) — r12 | `distill_out/data/` |
+| `logs/` | r8·r12 SFT·r9 DPO·r10/r11 RFT 학습 로그 (손실·보상, 가중치 아님), r12 설정·GPU 평가 | `distill_out/r*/` |
 
-다시 만들기: `docs/DISTILL.md` (dataset → distill_prep → train).
+다시 만들기: `docs/DISTILL.md` 3장 (`btqa_play dataset --correction-weight 3 --prep play_agent.distill_prep:prep_sample` → `btqa_distill train`). v5~v11 은 예전 손 스크립트(교정과 입력이 같은 샘플까지 3배)로 만든 것이라 SDK 명령 결과와 train 수가 다르다 (v11: 550 ↔ 442) — 그 회차 재현은 이 사본으로.

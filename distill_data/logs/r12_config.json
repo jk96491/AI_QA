@@ -1,0 +1,1 @@
+{"_comment": "r12: v11 = v10 + DAgger 4 (r8 GPU 학생, seed 1·2, 교정 3배), 3 epoch", "base_model": "Qwen/Qwen2.5-1.5B-Instruct", "out_dir": "distill_out/r12", "epochs": 3, "lr": 0.0002, "batch_size": 1, "grad_accum": 8, "lora_r": 16, "lora_alpha": 32, "max_len": 4096, "gradient_checkpointing": true}

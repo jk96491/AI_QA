@@ -8,12 +8,18 @@ reward(obs_before, tool, input, out):
   +0.2  창이 열린 상태에서 버튼을 눌러 창이 바뀜 (닫힘·다른 창) — 바뀌지 않는 성공 클릭은 0 (반복 클릭 보상 해킹 방지)
   finish: 진행 중 퀘스트가 없으면 +1, 남아 있으면 -0.5
   그 밖의 성공 0
+
+SDK RFT 에 함수 이름으로 넘긴다 (play_agent 는 torch·btqa_distill 을 import 하지 않는다 — 학습은 venv_distill 의 SDK 명령):
+    venv_distill\\Scripts\\python.exe -m btqa_distill rft --base distill_out/r4/merged --game 127.0.0.1:7801 --scratch 127.0.0.1:7802 \\
+        --seeds 11 12 --reward play_agent.distill_reward:reward --prepare play_agent.distill_reward:prepare \\
+        --spec play_agent/specs/qa_arena.play.json --cls warrior --out distill_out/r10
 """
 from __future__ import annotations
 
 from typing import Any, Mapping, Set
 
 PROGRESS_EVENTS = ("quest_accepted", "quest_progress", "quest_completed")
+LOADOUT = "reports/20261123-230419"   # 판 시작 준비: 늑대왕 학습 결과 로드아웃 (전투는 학습 BT)
 
 
 def _targets(obs: Mapping[str, Any]) -> Set[str]:
@@ -57,4 +63,14 @@ def reward(obs_before: Mapping[str, Any], tool: str, inp: Mapping[str, Any], out
     return r
 
 
-__all__ = ["reward"]
+def prepare(client: Any, desc: Mapping[str, Any]) -> Any:
+    """판 시작 준비 (RFT 본 판·분기 게임 모두): 학습 BT 로드아웃 → 전투 응답기."""
+    from play_agent.loadout import LoadoutBuilder
+    lb = LoadoutBuilder()
+    lb.add_file(LOADOUT)
+    if not lb.check_against(desc):
+        client.set_loadout(lb.wire_entries(desc), persona=lb.persona())
+    return lb.responder()
+
+
+__all__ = ["reward", "prepare", "LOADOUT"]
