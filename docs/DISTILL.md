@@ -259,6 +259,7 @@ venv_distill\Scripts\python.exe -m btqa_distill rft --base distill_out/r8/merged
 |---|---|---|
 | 2026-11-27 | r8 기준 평가 (0.8.5 스위트 32판, `reports/distill/base_r8.json`) | seen 완주 0.60 / 진척 0.76, robust 0.70 / 0.84, unseen 0.12 / 0.42. 멈춘 곳: 상인(인벤토리 반복) 7, 약초 반복 5, 촌장 포기·반복 5, 늑대왕 2 |
 | 2026-11-27 | r13 평가 (SFT v13, history 0, `reports/distill/eval_r13`) | seen 완주 0.00 / 진척 0.52, robust 0.60 / 0.74, unseen 0.00 / 0.43. `compare` vs r8: **기각** (seen −0.24, robust −0.10, unseen +0.01). 지도 b 는 r8 0 → 진척 0.33 (퀘스트 3·1·1), 나머지 unseen 은 r8 과 비슷. 숫자·문장 암기 (8.5 표) |
+| 2026-11-27 | r14 평가 (SFT+DAgger 5, history 0, `reports/distill/eval_r14`) — **15/32 판에서 중단** (작업이 멈춤) | seen **5/5 완주** (행동 39~42), robust **10/10 완주** (행동 38~46). unseen 17판은 미측정 → 다시 돌려야 판정 |
 | 2026-11-27 | 장면 점검: r14 (SFT+DAgger 5, history 0) 에 r8·r13 이 인벤토리→상인 장면에서 막힌 단계 101개를 그대로 질문 (게임 없이) | **닫기 94/101** (전환 직후 39/39, 2번째 32/37, 4번째 23/25), 나머지는 물약 칸 선택. r8·r13 은 같은 입력에서 '등록' 반복 → 이 장면은 기록(history)이 아니라 **DAgger 5 데이터**(0.8.5 다른 배치 + 규칙 R2)가 고쳤다 |
 
 순서 (8.5): v15 (v14 와 같은 기록, history 4 형식, 961줄) → r15 SFT (베이스부터) → 평가 → DAgger 6 (history 4, R8 defer 는 교사가 판 단위로 라벨) → r16 → DPO → RFT.
