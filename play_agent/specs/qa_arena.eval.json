@@ -1,0 +1,28 @@
+{
+  "format": "btqa-eval-suite/1",
+  "name": "qa_arena_tutorial",
+  "_about": "QaArena 튜토리얼 5개 — 증류 학생의 SFT 이후(DPO·RFT) 판정용. 형식은 SDK(btqa_play.suite), 조건 값은 이 게임 판단. docs/DISTILL.md 8장",
+  "defaults": {"max_actions": 70, "max_calls": 120, "temperature": 0.0, "repeats": 1,
+               "class": "warrior", "prepare": {"loadout": "reports/20261123-230419"}},
+  "conditions": [
+    {"name": "seen", "group": "seen", "seeds": "1-5",
+     "note": "지금까지의 평가 조건 (r8 CPU 5/5). 회귀 확인용 — 이것만으로는 후속 학습을 판정하지 않는다"},
+    {"name": "robust_t07", "group": "robust", "seeds": "1-5", "temperature": 0.7, "repeats": 2,
+     "note": "같은 조건, 샘플링 T=0.7 × 2 — 갈림길이 아슬아슬하면 여기서 드러난다 (r8 GPU 1/5 와 같은 종류)"},
+    {"name": "archer", "group": "unseen", "seeds": "1-3", "class": "archer", "prepare": {"loadout": []},
+     "note": "다른 직업 (DAgger 는 전사만, 교사 7판에 궁수 2판 있음 — 엄밀히 처음 보는 조건은 아님). 전투는 게임 default BT"},
+    {"name": "mage", "group": "unseen", "seeds": "1-3", "class": "mage", "prepare": {"loadout": []},
+     "note": "다른 직업 (교사 7판에 마법사 2판). 늑대왕 마법사 손튜닝 0% — 마지막 전투는 질 수 있다, 지표는 퀘스트 진척"},
+    {"name": "seed_far", "group": "unseen", "seeds": "101-105",
+     "note": "처음 보는 seed. 0.8.4 는 seed 가 튜토리얼 배치를 거의 안 바꿔 경고가 날 것 — unity_game/DISTILL_EVAL_REQUEST.md A"},
+    {"name": "poor_start", "group": "unseen", "seeds": "1-3", "options": {"start_gold": 0, "start_potions": 0},
+     "note": "Unity reset_options 선언 뒤 (요청서 B). 선언 전에는 건너뛴다"},
+    {"name": "layout_b", "group": "unseen", "seeds": "1-3", "options": {"layout": "b"},
+     "note": "Unity reset_options 선언 뒤 (요청서 B) — 채집물·NPC 대기 위치 변형"},
+    {"name": "rft_train", "group": "train", "seeds": "11-20",
+     "note": "RFT·on-policy 쌍 학습 조건. 평가 seed(1-5, 101-105) 와 섞지 않는다"},
+    {"name": "rft_train_archer", "group": "train", "seeds": "11-12", "class": "archer", "prepare": {"loadout": []}}
+  ],
+  "adopt": {"must_not_regress": ["seen"], "tolerance": 0.0, "improve_any": ["robust", "unseen"], "min_gain": 0.1,
+            "metric": "progress"}
+}

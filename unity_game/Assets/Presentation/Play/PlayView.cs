@@ -24,6 +24,7 @@ namespace Qa.Presentation.Play
         Camera _cam;
         Light _sun;
         string _builtZone;
+        WorldState _builtWorld;   // 0.8.5: 위치가 판(seed·layout)마다 다르므로 새 세계(reset·restore)면 다시 짓는다
         readonly List<QaTag> _tags = new List<QaTag>();
         Material _lit;
 
@@ -117,7 +118,7 @@ namespace Qa.Presentation.Play
         // ------------------------------------------------------------------ 지역
         void BuildZone(WorldState w)
         {
-            if (_zoneRoot != null) Destroy(_zoneRoot.gameObject);
+            if (_zoneRoot != null) { _zoneRoot.gameObject.SetActive(false); Destroy(_zoneRoot.gameObject); }
             _tags.Clear();
             _labels.Clear();
             var z = w.ZoneDef;
@@ -151,35 +152,35 @@ namespace Qa.Presentation.Play
                     case QaRole.Npc:
                         go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                         go.transform.localScale = new Vector3(0.8f, (float)d.Height / 2, 0.8f);
-                        go.transform.position = new Vector3((float)d.X, (float)d.Height / 2, (float)d.Z);
+                        go.transform.position = new Vector3((float)e.X, (float)d.Height / 2, (float)e.Z);
                         Paint(go, Array.IndexOf(d.Tags, "quest_giver") >= 0 ? new Color(0.95f, 0.8f, 0.2f) : new Color(0.8f, 0.3f, 0.3f));
                         break;
                     case QaRole.Enemy:
                         go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                         go.transform.localScale = new Vector3(1.8f, (float)d.Height / 2, 1.8f);
-                        go.transform.position = new Vector3((float)d.X, (float)d.Height / 2, (float)d.Z);
+                        go.transform.position = new Vector3((float)e.X, (float)d.Height / 2, (float)e.Z);
                         Paint(go, new Color(0.35f, 0.3f, 0.32f));
                         break;
                     case QaRole.Portal:
                         go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                         go.transform.localScale = new Vector3((float)d.Radius * 2, 0.05f, (float)d.Radius * 2);
-                        go.transform.position = new Vector3((float)d.X, 0.05f, (float)d.Z);
+                        go.transform.position = new Vector3((float)e.X, 0.05f, (float)e.Z);
                         Paint(go, new Color(0.4f, 0.3f, 0.9f));
                         break;
                     default:
                         go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                         go.transform.localScale = new Vector3((float)d.Radius * 2, (float)d.Height, (float)d.Radius * 2);
-                        go.transform.position = new Vector3((float)d.X, (float)d.Height / 2, (float)d.Z);
+                        go.transform.position = new Vector3((float)e.X, (float)d.Height / 2, (float)e.Z);
                         Paint(go, new Color(0.6f, 0.45f, 0.2f));
                         break;
                 }
                 go.name = "Entity:" + d.Id;
                 go.transform.SetParent(_zoneRoot, true);
-                AddLabel(go.transform, d, role);
+                AddLabel(go.transform, d, role, e.X, e.Z);
                 // 태그 위치 = 바닥 위치 (시야 판정은 Visibility 가 높이로 경계 상자를 만든다)
                 var tagGo = new GameObject(d.Id);
                 tagGo.transform.SetParent(go.transform, false);
-                tagGo.transform.position = new Vector3((float)d.X, 0, (float)d.Z);
+                tagGo.transform.position = new Vector3((float)e.X, 0, (float)e.Z);
                 var tag = tagGo.AddComponent<QaTag>();
                 tag.id = d.Id;
                 tag.role = role;
@@ -199,6 +200,7 @@ namespace Qa.Presentation.Play
             Paint(p, new Color(0.25f, 0.5f, 0.95f));
             _player = p.transform;
             _builtZone = z.Id;
+            _builtWorld = w;
         }
 
         static Color LabelColor(QaRole role)
@@ -213,13 +215,13 @@ namespace Qa.Presentation.Play
             }
         }
 
-        void AddLabel(Transform entity, EntityDef d, QaRole role)
+        void AddLabel(Transform entity, EntityDef d, QaRole role, double x, double z)
         {
             if (string.IsNullOrEmpty(d.Label)) return;
             var go = new GameObject("Label");
             go.AddComponent<QaIgnore>();
             go.transform.SetParent(entity, false);
-            go.transform.position = new Vector3((float)d.X, (float)d.Height + 0.7f, (float)d.Z);
+            go.transform.position = new Vector3((float)x, (float)d.Height + 0.7f, (float)z);
             var t = go.AddComponent<TextMeshPro>();
             var f = PlayFont.Get();
             if (f != null) t.font = f;
@@ -269,7 +271,7 @@ namespace Qa.Presentation.Play
         public void Sync(WorldState w)
         {
             if (w == null) return;
-            if (_builtZone != w.Zone || _player == null) BuildZone(w);
+            if (_builtZone != w.Zone || _builtWorld != w || _player == null) BuildZone(w);
             _player.position = new Vector3((float)w.PlayerX, 0.9f, (float)w.PlayerZ);
             var ground = new Vector3((float)w.PlayerX, 0f, (float)w.PlayerZ);
             Visibility.CameraPose(ground, out var cp, out var cr);
@@ -382,8 +384,8 @@ namespace Qa.Presentation.Play
         // ------------------------------------------------------------------ 전투 표시
         public void SyncCombat(WorldState w, EntityState enemy, Qa.Sim.CombatSim sim)
         {
-            if (_builtZone != w.Zone || _player == null) BuildZone(w);
-            var ep = new Vector3((float)enemy.Def.X, 0f, (float)enemy.Def.Z);
+            if (_builtZone != w.Zone || _builtWorld != w || _player == null) BuildZone(w);
+            var ep = new Vector3((float)enemy.X, 0f, (float)enemy.Z);
             if (_combatEnemy != enemy.Id)
             {
                 // 전투 시작 위치에서 적 → 플레이어 방향을 고정하고 1차원 거리를 그 선 위에 그린다

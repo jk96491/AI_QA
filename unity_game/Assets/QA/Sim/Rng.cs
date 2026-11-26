@@ -18,6 +18,11 @@ namespace Qa.Sim
             }
         }
 
+        Rng() { }
+
+        /// <summary>같은 상태의 복사본 (플레이 모드 snapshot 용). 이후 두 수열은 독립.</summary>
+        public Rng Clone() => new Rng { _s0 = _s0, _s1 = _s1, _s2 = _s2, _s3 = _s3 };
+
         static ulong SplitMix(ref ulong x)
         {
             unchecked

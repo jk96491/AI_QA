@@ -113,6 +113,7 @@ def main() -> int:
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--name", default=NAME)
+    ap.add_argument("--history", type=int, default=0, help="그 모델이 학습한 recent_actions 개수 (r15~ = 4)")
     a = ap.parse_args()
     if sys.platform != "win32":
         raise SystemExit("Windows 전용 (Win32 화면 복사)")
@@ -120,7 +121,8 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     stem = OUT_DIR / (a.name or "%s_seed%d" % (a.model, a.seed))
     log = open(str(stem) + ".log", "w", encoding="utf-8")
-    play = subprocess.Popen([sys.executable, "-u", str(ROOT / "run" / "run_play_local.py"), "--model", a.model, "--seed", str(a.seed)],
+    play = subprocess.Popen([sys.executable, "-u", str(ROOT / "run" / "run_play_local.py"), "--model", a.model, "--seed", str(a.seed),
+                             "--history", str(a.history)],
                             cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
     win = Window()
     h = None

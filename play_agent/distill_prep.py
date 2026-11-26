@@ -33,6 +33,34 @@ def _near(d: float) -> str:
     return "가까움 %.1f" % d if d <= NEAR else "멂 %.1f" % d
 
 
+def _act_name(a: Dict[str, Any]) -> str:
+    inp = a.get("input") or {}
+    obj = inp.get("target") or inp.get("ui_id") or inp.get("item") or ""
+    return ("%s %s" % (a.get("tool"), obj)).strip()
+
+
+def repetition(d: Dict[str, Any]) -> str:
+    """입력의 recent_actions + last_action → 반복 읽기 (history 형식일 때만, 없으면 "").
+
+    r13 진단 (2026-11-27): 학생이 직전 행동 하나만 봐서 "등록" 버튼 20번·약초↔포털 왕복을 알아채지 못했다.
+    같은 행동 N번 연속 = "같은 행동 N번째", 두 행동을 번갈아 (ABAB) = "번갈아 반복". 상점 구매처럼 반복이 맞는 장면도 있으니
+    판단은 교사 라벨이 하고, 여기서는 입력에 있는 사실만 옮긴다."""
+    if "recent_actions" not in d:
+        return ""
+    seq = [x for x in list(d.get("recent_actions") or []) + [d.get("last_action")] if x]
+    names = [_act_name(x) for x in seq]
+    if not names:
+        return ""
+    n = 1
+    while n < len(names) and names[-1 - n] == names[-1]:
+        n += 1
+    if n >= 2:
+        return "같은 행동 %d번째 (%s)" % (n, names[-1])
+    if len(names) >= 4 and names[-1] == names[-3] and names[-2] == names[-4] and names[-1] != names[-2]:
+        return "번갈아 반복 (%s ↔ %s)" % (names[-2], names[-1])
+    return ""
+
+
 def situation(user_text: str) -> str:
     d = json.loads(user_text)
     o = d.get("observation") or {}
@@ -72,7 +100,46 @@ def situation(user_text: str) -> str:
     la = d.get("last_action")
     if la and (la.get("status") == "failed" or la.get("error")):
         parts.append("직전 실패 %s" % (la.get("reason") or la.get("error")))
+    r = repetition(d)
+    if r:
+        parts.append(r)
     return "상황: " + " · ".join(parts)
+
+
+def situation_key(user_text: str) -> str:
+    """교사 일관성 검사용 "같은 상황" 키 (btqa_play dataset --situation-key 훅).
+
+    입력 글자 전체가 아니라 판단을 가르는 것만: 지역 · 첫 미완료 목표(퀘스트·목표 글·진행도·ready) · 대상 거리 구간(가까움/멂/없음) · 창.
+    같은 키에서 교사가 서로 다른 도구를 골랐으면 학생이 흔들린다 (r12 상인 장면: 같은 장면에 talk 와 인벤토리 열기가 섞였다)."""
+    d = json.loads(user_text)
+    o = d.get("observation") or {}
+    dist = {e.get("id"): e.get("distance") for e in o.get("entities") or []}
+    parts: List[str] = [str((o.get("player") or {}).get("zone") or "?")]
+    for q in o.get("quests") or []:
+        objs = [x for x in q.get("objectives") or [] if not x.get("done")]
+        if q.get("state") == "ready" or not objs:
+            parts.append("%s:ready" % q.get("id"))
+            tg = [t for x in objs for t in x.get("hint_targets") or []]
+        else:
+            prog = objs[0].get("progress") or [0, 0]
+            parts.append("%s:%s:%s/%s" % (q.get("id"), objs[0].get("text"), prog[0], prog[1]))
+            tg = list(objs[0].get("hint_targets") or [])
+        seen_t = sorted(t for t in tg if t in dist)
+        parts.append("target:" + ("near" if any((dist.get(t) or 99) <= NEAR for t in seen_t) else "far" if seen_t else "none"))
+        break   # 첫 퀘스트만 (튜토리얼은 한 번에 하나)
+    # 손 닿는 엔티티 (상호작용 가능 거리) — 같은 목표라도 "포털 앞"과 "촌장 앞"은 다른 장면
+    reach = sorted(str(e.get("id")) for e in o.get("entities") or [] if (e.get("distance") or 99) <= NEAR)
+    parts.append("reach:" + ",".join(reach[:3]))
+    screen = o.get("screen") or {}
+    choices = [u for u in screen.get("ui") or [] if u.get("role") == "button" and u.get("interactable") is not False
+               and not str(u.get("id", "")).startswith("ui.hud.")]
+    parts.append("modal:%s%s" % (screen.get("modal") or "-", "+buttons" if choices else ""))
+    la = d.get("last_action") or {}
+    lost = any(c.get("cleared") is False for c in la.get("combats") or [])   # 직전 전투 패배 → 포기(finish)도 맞는 장면
+    parts.append("last_failed" if (la.get("status") == "failed" or la.get("error")) else "lost" if lost else "")
+    r = repetition(d)
+    parts.append("rep" if r.startswith("같은") else "alt" if r else "")
+    return "|".join(parts)
 
 
 def _with_situation(user_text: str, action_json: str) -> str:

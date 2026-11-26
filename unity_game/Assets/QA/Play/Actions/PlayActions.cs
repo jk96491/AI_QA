@@ -125,8 +125,8 @@ namespace Qa.Play.Actions
             {
                 var e = Target(ctx, target, out var f);
                 if (e == null) return f;
-                _tx = e.Def.X;
-                _tz = e.Def.Z;
+                _tx = e.X;
+                _tz = e.Z;
                 _done = lim.InteractRange - 0.2;
                 arrivePath = lim.InteractRange - 0.6;
             }
@@ -240,7 +240,7 @@ namespace Qa.Play.Actions
                 ImmediateEncounter = w.EnemyInAggro() ?? e;
                 return ActionStatus.Done;
             }
-            var st = StartToward(w, e.Def.X, e.Def.Z, e.Def.AggroRadius - 0.3);
+            var st = StartToward(w, e.X, e.Z, e.Def.AggroRadius - 0.3);
             if (st == ActionStatus.Done) ImmediateEncounter = w.EnemyInAggro() ?? e;
             return st;
         }

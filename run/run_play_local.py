@@ -25,6 +25,7 @@ from _bootstrap import ROOT, setup
 MODEL = "qa-qwen1.5b-r8"     # Ollama 모델 이름 (CPU 전용). 증류 r8 = 튜토리얼 5개 완주 (2026-11-25). 원본 비교는 "qwen2.5-1.5b-cpu"
 BASE = "qwen2.5:1.5b"        # MODEL 이 없을 때 CPU 전용 변형을 만들 원본 (ollama pull 로 받은 것)
 OLLAMA_URL = "http://localhost:11434"
+HISTORY = 0                  # 학생 입력의 이전 행동 수 (recent_actions) — 그 모델이 학습한 K (r8~r14 = 0, r15~ = 4)
 CLASS = "warrior"
 SEED = 1
 MAX_ACTIONS = 80             # 행동 상한
@@ -122,14 +123,15 @@ def print_step(s: Dict[str, Any]) -> None:
 def _args() -> None:
     """명령줄로 설정 덮기 (PyCharm 은 위 설정 블록): --model qa-qwen1.5b-r1 --seed 2 --cls mage --max-actions 60"""
     import argparse
-    global MODEL, SEED, CLASS, MAX_ACTIONS
+    global MODEL, SEED, CLASS, MAX_ACTIONS, HISTORY
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--cls", default=CLASS)
     ap.add_argument("--max-actions", type=int, default=MAX_ACTIONS)
+    ap.add_argument("--history", type=int, default=HISTORY)
     a = ap.parse_args()
-    MODEL, SEED, CLASS, MAX_ACTIONS = a.model, a.seed, a.cls, a.max_actions
+    MODEL, SEED, CLASS, MAX_ACTIONS, HISTORY = a.model, a.seed, a.cls, a.max_actions, a.history
 
 
 def main() -> int:
@@ -183,7 +185,7 @@ def main() -> int:
             backend = JsonActionBackend(MODEL, base_url=OLLAMA_URL + "/v1", max_tokens=300, temperature=0.0)
             pilot = LlmPilot(c, responder=lb.responder() if lb.entries else None, backend=backend, spec=str(ROOT / SPEC),
                              config=PilotConfig(stateless=True, max_actions=MAX_ACTIONS, max_calls=MAX_ACTIONS * 2,
-                                                no_progress_actions=NO_PROGRESS),
+                                                no_progress_actions=NO_PROGRESS, history=HISTORY),
                              recorder=rec, on_step=print_step)
             run = pilot.run(obs)
             log = c.get_log()

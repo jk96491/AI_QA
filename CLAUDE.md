@@ -38,6 +38,8 @@
   - `openai`(OpenAI 호환: 로컬 Ollama·LM Studio 등) 백엔드는 표준 라이브러리만 → 3.8 venv 그대로. `anthropic`(Claude API) 만 anthropic SDK(Python ≥3.10) 별도 venv(`venv_play` — 지금은 없음, 쓸 때 만들고 `pip install -e ./btqa_sdk`), SDK 는 `AnthropicBackend` 안에서만 import.
   - 이 사용자는 API 추가 과금을 원하지 않는다 → 직접 플레이할 땐 `relay`/`step` (Claude Code 세션이 플레이어).
   - **증류 (사용자 결정 2026-11-24)**: 교사 = 이 세션(relay `--record`), 학생 = 작은 로컬 LLM (Qwen2.5 0.5B~3B, **플레이는 CPU**, 학습은 GPU LoRA). 학생은 대화 기록 없이 **지금 관찰 + 직전 행동 결과 → JSON 행동 1개** (`btqa_play` 단계 형식). 계획·명령 `docs/DISTILL.md`. 시야 밖 정보는 게임 쪽에서 푼다 (`unity_game/OFFSCREEN_TARGET_REQUEST.md`).
+  - **SFT 이후 (사용자 결정 2026-11-26)**: DAgger 에서 멈추지 않고 DPO·RFT 까지 의미가 있어야 한다. 판정은 학습 지표가 아니라 **평가 스위트** (`play_agent/specs/qa_arena.eval.json` → `btqa_play eval`·`compare`: seen 회귀 없음 + robust·unseen 이득). DPO = on-policy 쌍(`btqa_distill pairs-onpolicy`), RFT = 스위트 `train` 묶음. 교사 규칙·절차는 SDK `DISTILL_SDK.md` 5·6장(게임 무관), QaArena 빈칸은 `docs/DISTILL.md` 8장. seed 가 판을 바꾸지 않으면(check-play `--only TD` T-V) 이득을 주장하지 않는다 — `unity_game/DISTILL_EVAL_REQUEST.md`.
+  - **학생 입력에 최근 행동 기록 (사용자 결정 2026-11-27)**: r15~ 는 SDK 단계 형식 `history=4` (`recent_actions`) — 모든 증류 명령에 `--history 4` (학습·실행 K 가 같아야 한다). r8~r14 는 0. 근거 `docs/DISTILL.md` 8.5.
 - 정의서·데이터는 **JSON**.
 - Windows 콘솔 한글: 진입점에서 `sys.stdout.reconfigure(encoding="utf-8")` (cli, game_sim `__main__`, experiments/common 에 있음).
 

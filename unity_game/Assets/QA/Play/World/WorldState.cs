@@ -11,7 +11,10 @@ namespace Qa.Play.World
     {
         public readonly EntityDef Def;
         public bool Active = true;   // 주운 아이템 등은 false
-        public EntityState(EntityDef def) { Def = def; }
+        /// <summary>(0.8.5) 이 판의 위치 — reset 때 Placement 가 정한다 (seed·layout). 정의 pos 는 기준값일 뿐.</summary>
+        public double X, Z;
+        public EntityState(EntityDef def) { Def = def; X = def.X; Z = def.Z; }
+        public EntityState Copy() => new EntityState(Def) { Active = Active, X = X, Z = Z };
         public string Id => Def.Id;
     }
 
@@ -41,6 +44,13 @@ namespace Qa.Play.World
             Def = def;
             Stored = new int[def.Objectives.Count];
         }
+        public QuestState Copy()
+        {
+            var q = new QuestState(Def) { Accepted = Accepted, Completed = Completed, NoticeShown = NoticeShown };
+            Array.Copy(Stored, q.Stored, Stored.Length);
+            q.LastProgress = LastProgress == null ? null : (int[])LastProgress.Clone();
+            return q;
+        }
     }
 
     public sealed class ItemStack
@@ -55,6 +65,8 @@ namespace Qa.Play.World
         public readonly long Seed;
         public readonly string Class;
         public readonly Rng Rng;
+        /// <summary>(0.8.5) reset.options (기본값 포함).</summary>
+        public readonly ResetOptions Options;
 
         public long Steps { get; private set; }
         public double Time => Steps * Data.Limits.Dt;
@@ -104,13 +116,14 @@ namespace Qa.Play.World
         /// <summary>사건 발생 시 (로그용).</summary>
         public event Action<WorldEvent> OnEvent;
 
-        public WorldState(PlayData data, long seed, string cls)
+        public WorldState(PlayData data, long seed, string cls, ResetOptions options = null)
         {
             Data = data;
             Seed = seed;
             Class = cls;
             Rng = new Rng(seed);
-            Gold = data.StartGold;
+            Options = options ?? ResetOptions.Defaults(data);
+            Gold = Options.StartGold;
             QuickSlots = new string[Math.Max(1, data.QuickSlots)];
             foreach (var z in data.Zones)
             {
@@ -119,7 +132,55 @@ namespace Qa.Play.World
                 _zoneEntities[z.Id] = list;
             }
             foreach (var q in data.Quests) _quests.Add(new QuestState(q));
+            // 0.8.5: seed·layout → 대기 위치·시작 위치 (배치 전용 난수 — Rng·조우 seed 수열은 그대로)
+            var lr = Placement.LayoutRng(seed);
+            Placement.Apply(data, Options, lr, GridFor, id => _zoneEntities[id]);
+            if (Options.StartPotions > 0) _inventory.Add(new ItemStack { Id = data.StartPotionItem, Count = Options.StartPotions });
             EnterZone(data.StartZone, false);
+            double px = PlayerX, pz = PlayerZ;
+            Placement.StartPos(data, ZoneDef, Grid, _zoneEntities[Zone], lr, ref px, ref pz);
+            PlayerX = px;
+            PlayerZ = pz;
+        }
+
+        GridPath GridFor(string zone)
+        {
+            if (!_grids.TryGetValue(zone, out var g))
+                _grids[zone] = g = new GridPath(Data.Zone(zone), Data.Limits.CellSize, Data.Limits.PlayerRadius);
+            return g;
+        }
+
+        /// <summary>(0.8.5) snapshot/restore (PLAY_PROTOCOL 4.11): 결정성에 들어가는 상태 전부의 깊은 복사.
+        /// 정의 데이터·격자(불변)는 공유, 사건 구독자와 미전달 사건은 복사하지 않는다.</summary>
+        public WorldState Clone() => new WorldState(this);
+
+        WorldState(WorldState o)
+        {
+            Data = o.Data; Seed = o.Seed; Class = o.Class; Options = o.Options;
+            Rng = o.Rng.Clone();
+            Steps = o.Steps;
+            foreach (var kv in o._grids) _grids[kv.Key] = kv.Value;
+            Zone = o.Zone; Grid = o.Grid;
+            PlayerX = o.PlayerX; PlayerZ = o.PlayerZ; HpRatio = o.HpRatio; Level = o.Level;
+            Xp = o.Xp; Encounters = o.Encounters; CombatDeaths = o.CombatDeaths; Gold = o.Gold; PlayerState = o.PlayerState;
+            Modal = o.Modal; Tip = o.Tip;
+            if (o.Dialogue != null)
+            {
+                Dialogue = new DialogueView { Npc = o.Dialogue.Npc, NodeId = o.Dialogue.NodeId, Speaker = o.Dialogue.Speaker, Text = o.Dialogue.Text };
+                Dialogue.Choices.AddRange(o.Dialogue.Choices);
+            }
+            ShopNpc = o.ShopNpc; ShopMessage = o.ShopMessage; InventorySelected = o.InventorySelected;
+            Notice = o.Notice; NoticeCount = o.NoticeCount;
+            foreach (var f in o._flags) _flags.Add(f);
+            foreach (var kv in o._zoneEntities)
+            {
+                var list = new List<EntityState>(kv.Value.Count);
+                foreach (var e in kv.Value) list.Add(e.Copy());
+                _zoneEntities[kv.Key] = list;
+            }
+            foreach (var it in o._inventory) _inventory.Add(new ItemStack { Id = it.Id, Count = it.Count });
+            QuickSlots = (string[])o.QuickSlots.Clone();
+            foreach (var q in o._quests) _quests.Add(q.Copy());
         }
 
         /// <summary>reset 직후 1회: 시작 퀘스트 수락 (new_game 사건 뒤에 오도록 세션이 부른다).</summary>
@@ -132,9 +193,7 @@ namespace Qa.Play.World
         {
             Zone = zone;
             var z = ZoneDef;
-            if (!_grids.TryGetValue(zone, out var g))
-                _grids[zone] = g = new GridPath(z, Data.Limits.CellSize, Data.Limits.PlayerRadius);
-            Grid = g;
+            Grid = GridFor(zone);
             PlayerX = z.SpawnX;
             PlayerZ = z.SpawnZ;
             if (emit) Emit("zone_entered", new JObject { ["zone"] = zone });
@@ -147,7 +206,7 @@ namespace Qa.Play.World
             return null;
         }
 
-        public double DistanceTo(EntityState e) => GridPath.Dist(PlayerX, PlayerZ, e.Def.X, e.Def.Z);
+        public double DistanceTo(EntityState e) => GridPath.Dist(PlayerX, PlayerZ, e.X, e.Z);
 
         /// <summary>고정 dt 1틱. 이동은 행동(MoveTo)이 이 전에 위치를 바꾼다.</summary>
         public void Step() => Steps++;
@@ -264,8 +323,8 @@ namespace Qa.Play.World
                 if (cp != null)
                 {
                     // 체크포인트 바로 옆(같은 칸이 막혀 있으면 지역 시작점)
-                    PlayerX = cp.Def.X;
-                    PlayerZ = cp.Def.Z;
+                    PlayerX = cp.X;
+                    PlayerZ = cp.Z;
                     if (!Grid.IsFree(PlayerX, PlayerZ)) { PlayerX = ZoneDef.SpawnX; PlayerZ = ZoneDef.SpawnZ; }
                     aftermath["respawned_at"] = cp.Id;
                 }

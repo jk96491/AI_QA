@@ -5,6 +5,8 @@ unity_game/QaTools~/play_check.py (Unity 쪽 자체 검증) 의 T2~T8·T-P·T-N 
   T7 결정성 · T8 새 게임 · T9 학습 결과 인계(--loadout: params.json/policy.json → set_loadout + 응답기, 밸런스 결과와 일치)
   T-P (v0.3) 전투 물약 = 퀵슬롯 물약 min(보유, cap), 사용분 차감 · T-N (v0.3) pilot_note
   T-D (0.3 선택 필드 4.2.1) 행동 설명·스키마가 게임 선언 또는 QaArena 스펙에 있는지 + 선언 규칙 (SDK validate_description)
+  TD (--only TD, 기본 밖) 증류 평가 요청 unity_game/DISTILL_EVAL_REQUEST.md: T-V seed 가 숲 배치를 바꿈 · T-R reset.options (4.4.1)
+     · T-S snapshot/restore (4.11). 선언이 없으면 T-R·T-S 는 건너뛴다
 T5·T9 의 밸런스 비교는 물약을 cap 개 가져간 조우(carried == cap)만 한다 — 밸런스 판은 항상 cap 개로 시작한다.
 
 인스턴스는 직접 띄운 것(--game 등)을 쓰거나 --exe 로 헤드리스 인스턴스를 띄운다.
@@ -463,9 +465,10 @@ def t4(ck: Checker, ep: str) -> None:
     ck.check("get_log: quest_completed 5개 (01→05)", done == ["q_tut_01", "q_tut_02", "q_tut_03", "q_tut_04", "q_tut_05"], str(done))
 
     o = c.rq({"type": "reset", "seed": 3, "class": "warrior"})
-    ck.check("reset → 첫 장면 (골드 20, 인벤토리 비움, q_tut_01, 마을 시작점)",
-             o["player"]["gold"] == 20 and o["inventory"] == [] and quest(o, "q_tut_01") is not None and o["player"]["pos"] == [0.0, 0.0, 0.0]
-             and o["player"]["zone"] == "village")
+    pos = o["player"]["pos"]   # 0.8.5: 시작 위치를 seed 로 ±1.5 m 흔든다 (DISTILL_EVAL_REQUEST A) — 시작점 근처면 된다
+    ck.check("reset → 첫 장면 (골드 20, 인벤토리 비움, q_tut_01, 마을 시작점 ±1.5 m)",
+             o["player"]["gold"] == 20 and o["inventory"] == [] and quest(o, "q_tut_01") is not None
+             and max(abs(pos[0]), abs(pos[2])) <= 1.5 + 1e-6 and o["player"]["zone"] == "village", "pos=%s" % pos)
     c.close()
 
 
@@ -820,6 +823,91 @@ class Instances:
                 pass
 
 
+# ====================================================================== TD (증류 평가 요청, unity_game/DISTILL_EVAL_REQUEST.md)
+def _to_forest(c: Conn, seed: int, options: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """촌장 대화 → 약초 퀘스트 수락 → 숲 입장. 관찰 2개 (reset 직후, 숲 입장 뒤)."""
+    msg: Dict[str, Any] = {"type": "reset", "seed": seed, "class": "warrior"}
+    if options:
+        msg["options"] = options
+    first = c.rq(msg)
+    goto(c, "npc_elder")
+    c.act("interact", target="npc_elder", verb="talk")
+    click(c, "ui.dialog.choice.0")
+    click(c, "ui.dialog.choice.0")
+    c.act("move_to", target="portal_forest")
+    r = c.act("interact", target="portal_forest", verb="enter")
+    return [first, r.get("observation") or c.rq({"type": "observe"})]
+
+
+def _layout(o: Dict[str, Any]) -> str:
+    """배치 서명: 보이는 엔티티 id·좌표 + 플레이어 위치·골드 (seed 가 판을 바꾸는지)."""
+    ents = sorted((e.get("id"), [round(x, 1) for x in e.get("pos") or []]) for e in o.get("entities") or [])
+    p = o.get("player") or {}
+    return json.dumps([ents, [round(x, 1) for x in p.get("pos") or []], p.get("gold")])
+
+
+def td(ck: Checker, ep: str, seeds: Sequence[int] = (1, 2, 3, 4, 5)) -> None:
+    print("== TD 증류 평가 요청 (seed 변화 · reset.options · snapshot)")
+    c = Conn(ep)
+    c.hello()
+    d = c.pc.describe()
+    # T-V seed 가 튜토리얼 판을 바꾸는가 (요청 A) — 같은 seed 는 같은 판
+    lay = {s: _layout(_to_forest(c, s)[1]) for s in seeds}
+    again = _layout(_to_forest(c, seeds[0])[1])
+    ck.check("T-V 같은 seed → 같은 숲 배치", again == lay[seeds[0]])
+    ck.check("T-V seed %d개 → 숲 배치 %d가지 (≥ %d)" % (len(seeds), len(set(lay.values())), min(3, len(seeds))),
+             len(set(lay.values())) >= min(3, len(seeds)), "0.8.4 까지는 1가지 — 요청 A")
+    # T-R reset_options (요청 B)
+    ro = {o.get("name"): o for o in d.get("reset_options") or [] if isinstance(o, dict)}
+    if not ro:
+        print("  (reset_options 선언 없음 — T-R 건너뜀)")
+    else:
+        ck.check("T-R reset_options 형식 (name·type·default)", all(o.get("type") in ("int", "number", "bool", "enum") and "default" in o
+                                                                 for o in ro.values()), str(list(ro)))
+        bad = c.rq({"type": "reset", "seed": 1, "class": "warrior", "options": {"__nope__": 1}})
+        ck.check("T-R 모르는 옵션 → bad_request", bad.get("code") == "bad_request", str(bad)[:120])
+        for name, o in ro.items():
+            if o.get("type") == "int" and "max" in o:
+                r = c.rq({"type": "reset", "seed": 1, "class": "warrior", "options": {name: o["max"] + 1}})
+                ck.check("T-R %s 범위 밖 → bad_request" % name, r.get("code") == "bad_request", str(r)[:120])
+        if "start_gold" in ro:
+            o = c.rq({"type": "reset", "seed": 1, "class": "warrior", "options": {"start_gold": 0}})
+            ck.check("T-R start_gold=0 → 관찰 player.gold 0", (o.get("player") or {}).get("gold") == 0, str(o.get("player"))[:120])
+        if "layout" in ro:
+            vals = ro["layout"].get("values") or []
+            ls = {v: _layout(_to_forest(c, 1, {"layout": v})[1]) for v in vals}
+            ck.check("T-R layout %s → 숲 배치가 모두 다름" % vals, len(set(ls.values())) == len(vals) > 1)
+            ck.check("T-R 같은 seed+options → 같은 배치", _layout(_to_forest(c, 1, {"layout": vals[-1]})[1]) == ls.get(vals[-1]))
+        lg = c.rq({"type": "get_log"})
+        rs = [e for e in lg.get("entries", []) if e[1] == "reset"]
+        ck.check("T-R play_log reset 항목에 options", bool(rs) and "options" in (rs[-1][2] or {}), str(rs[-1:])[:160])
+    # T-S snapshot/restore (요청 C, 선택)
+    if not (d.get("capabilities") or {}).get("snapshot"):
+        print("  (capabilities.snapshot 선언 없음 — T-S 건너뜀)")
+    else:
+        _to_forest(c, 3)
+        sid = c.rq({"type": "snapshot"})
+        ck.check("T-S snapshot → snapshot_ok + id", sid.get("type") == "snapshot_ok" and bool(sid.get("id")), str(sid))
+        def branch(action, **args):
+            o0 = c.rq({"type": "restore", "id": sid.get("id")})
+            r = c.act(action, **args)
+            return strip_seq(o0), strip_seq(r.get("observation") or {}), r.get("status")
+        a1, b1 = branch("move_to", target="herb_01"), branch("move_to", target="herb_01")
+        ck.check("T-S restore 뒤 같은 행동 → 같은 결과", a1 == b1, str(a1[2]))
+        x = branch("wait", seconds=1.0)
+        ck.check("T-S 다른 행동 뒤 restore → 저장 시점 관찰", branch("move_to", target="herb_01") == a1 and x[0] == a1[0])
+        c.rq({"type": "restore", "id": sid.get("id")})
+        lg1 = c.rq({"type": "get_log"})["entries"]
+        c.act("move_to", target="herb_01")
+        c.rq({"type": "restore", "id": sid.get("id")})
+        lg2 = c.rq({"type": "get_log"})["entries"]
+        ck.check("T-S restore → play_log 도 저장 시점으로", [e for e in lg1 if e[1] != "restore"] == [e for e in lg2 if e[1] != "restore"],
+                 "%d vs %d" % (len(lg1), len(lg2)))
+        bad = c.rq({"type": "restore", "id": "__nope__"})
+        ck.check("T-S 없는 id → bad_request", bad.get("code") == "bad_request", str(bad)[:120])
+    c.close()
+
+
 def run_all(game: str, omni: Optional[str] = None, balance: Optional[str] = None, game2: Optional[str] = None,
             loadout: Sequence[str] = (), only: Optional[Sequence[str]] = None) -> Checker:
     ck = Checker()
@@ -838,6 +926,8 @@ def run_all(game: str, omni: Optional[str] = None, balance: Optional[str] = None
         t78(ck, game, game2, balance)
     if "T9" in want and loadout:
         t9(ck, game, balance, loadout)
+    if "TD" in want:   # 기본 묶음 밖 — --only TD (증류 평가 요청 반영 확인)
+        td(ck, game)
     n = len(ck.results)
     print("\n결과: %s (%d/%d)" % ("PASS" if ck.passed else "FAIL", sum(1 for _, ok, _ in ck.results if ok), n), flush=True)
     return ck

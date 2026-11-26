@@ -9,6 +9,9 @@ reward(obs_before, tool, input, out):
   finish: 진행 중 퀘스트가 없으면 +1, 남아 있으면 -0.5
   그 밖의 성공 0
 
+보상은 1단계다 (다음 상태를 더 보지 않는다). RFT·on-policy DPO 쌍(btqa_distill pairs-onpolicy) 이 같은 함수를 쓴다.
+해킹 기록: r10 "창 열린 채 ui_click 성공 +0.2" → 같은 등록 버튼 반복 (아래 주석). 새 해킹이 보이면 여기 고치고 docs/DISTILL.md 8장에 남긴다.
+
 SDK RFT 에 함수 이름으로 넘긴다 (play_agent 는 torch·btqa_distill 을 import 하지 않는다 — 학습은 venv_distill 의 SDK 명령):
     venv_distill\\Scripts\\python.exe -m btqa_distill rft --base distill_out/r4/merged --game 127.0.0.1:7801 --scratch 127.0.0.1:7802 \\
         --seeds 11 12 --reward play_agent.distill_reward:reward --prepare play_agent.distill_reward:prepare \\
@@ -63,11 +66,15 @@ def reward(obs_before: Mapping[str, Any], tool: str, inp: Mapping[str, Any], out
     return r
 
 
-def prepare(client: Any, desc: Mapping[str, Any]) -> Any:
-    """판 시작 준비 (RFT 본 판·분기 게임 모두): 학습 BT 로드아웃 → 전투 응답기."""
+def prepare(client: Any, desc: Mapping[str, Any], loadout: Any = LOADOUT) -> Any:
+    """판 시작 준비 (RFT 본 판·분기 게임·평가 스위트·on-policy 쌍): 학습 BT 로드아웃 → 전투 응답기.
+    loadout = reports/<run> 하나 또는 목록 (평가 스위트 조건의 "prepare": {"loadout": ...}). 빈 목록 = 게임 default BT."""
     from play_agent.loadout import LoadoutBuilder
     lb = LoadoutBuilder()
-    lb.add_file(LOADOUT)
+    for p in ([loadout] if isinstance(loadout, str) else list(loadout or [])):
+        lb.add_file(p)
+    if not lb.entries:
+        return None
     if not lb.check_against(desc):
         client.set_loadout(lb.wire_entries(desc), persona=lb.persona())
     return lb.responder()

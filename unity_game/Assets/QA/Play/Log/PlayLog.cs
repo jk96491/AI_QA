@@ -23,5 +23,14 @@ namespace Qa.Play.Log
         }
 
         public void Clear() => _entries.Clear();
+
+        /// <summary>(0.8.5) snapshot/restore 용 복사 (항목은 불변으로 다룬다 — 내보낼 때 DeepClone).</summary>
+        public List<JArray> Save() => new List<JArray>(_entries);
+
+        public void Restore(List<JArray> saved)
+        {
+            _entries.Clear();
+            _entries.AddRange(saved);
+        }
     }
 }

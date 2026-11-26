@@ -1,5 +1,5 @@
 // 플레이 모드 메시지 처리 (PLAY_PROTOCOL 4장). 메인 스레드에서 Pump() 로 돈다.
-//   hello, play_describe, set_loadout, reset, observe, act, get_log, pilot_note(v0.3), bye
+//   hello, play_describe, set_loadout, reset(+options 4.4.1), observe, act, get_log, pilot_note(v0.3), snapshot/restore(4.11), bye
 //   act 중 전투: combat_started → (trigger ↔ trigger_response)* → combat_ended → action_result. 전투 중 다른 요청 → error(busy)
 // 세계 정지: 시간은 act 처리 중 ActionRunner.Tick 에서만 흐른다. 응답을 보낸 뒤 다음 요청까지 아무것도 Step 하지 않는다.
 using Btqa.Game;
@@ -33,6 +33,9 @@ namespace Qa.Play.Server
         public const string TriggerResponse = "trigger_response", Trigger = "trigger", LoadoutOk = "loadout_ok";
         public const string CombatStarted = "combat_started", CombatEnded = "combat_ended";
         public const string PilotNote = "pilot_note", PilotNoteOk = "pilot_note_ok";
+        public const string Snapshot = "snapshot", SnapshotOk = "snapshot_ok", Restore = "restore";
+        /// <summary>연결당 저장 상한 (넘으면 오래된 것부터 지운다, 4.11).</summary>
+        public const int MaxSnapshots = 64;
 
         /// <summary>조우 시작 상태 (v0.3): 체력·자원 = 보스 결계 회복 full, 물약 = 퀵슬롯 등록 물약 min(보유, cap).</summary>
         public const string EncounterStartState = "barrier_inventory_potions";
@@ -97,6 +100,18 @@ namespace Qa.Play.Server
         double _acc;
 
         public WorldState World => _world;
+
+        /// <summary>snapshot (4.11): 결정성에 들어가는 세션 상태 전부. 세계는 깊은 복사본 — restore 때 다시 복사해 쓴다 (여러 번 restore 가능).</summary>
+        sealed class Saved
+        {
+            public string Id;
+            public WorldState World;
+            public List<JArray> Log;
+            public Loadout Loadout;
+            public string InputMode;
+        }
+        readonly LinkedList<Saved> _snaps = new LinkedList<Saved>();
+        int _snapSeq;
 
         sealed class ActiveCombat
         {
@@ -203,6 +218,7 @@ namespace Qa.Play.Server
             {
                 _conn = r.Connection;   // 새 연결: reset 부터, 로드아웃도 새로
                 _isReset = false;
+                _snaps.Clear();         // snapshot id 는 연결 안에서만 유효 (4.11)
                 _loadout = new Loadout();
                 _version = ProtoDefault;
                 _inputMode = "semantic";
@@ -464,6 +480,8 @@ namespace Qa.Play.Server
                 case PP.Act: DoAct(msg); return;
                 case PP.GetLog: DoGetLog(msg); return;
                 case PP.PilotNote: DoPilotNote(msg); return;
+                case PP.Snapshot: DoSnapshot(); return;
+                case PP.Restore: DoRestore(msg); return;
                 case PP.Bye: Reply(null, true); return;
                 case PP.SetLoadout:
                 {
@@ -618,6 +636,9 @@ namespace Qa.Play.Server
                     ["encounters"] = Encounters(),
                 },
                 ["quests"] = QuestList(),
+                // 0.8.5 (play 0.3 선택 기능): 시작 조건 4.4.1 · 상태 저장 4.11
+                ["reset_options"] = ResetOptions.Declaration(_data),
+                ["capabilities"] = new JObject { ["snapshot"] = true },
                 ["pilot_notes"] = new JObject { ["max_chars"] = PP.PilotMaxChars, ["kinds"] = new JArray(PP.PilotKinds) },
                 // v0.4 (computer use): raw 입력 모드
                 ["input_modes"] = new JArray(PP.InputModes),
@@ -682,17 +703,20 @@ namespace Qa.Play.Server
                     if (Array.IndexOf(PP.InputModes, mode) < 0) throw new ProtocolException(P.EBadRequest, "input_mode 는 semantic|raw");
                     continue;
                 }
-                if (p.Name != "type" && p.Name != "seed" && p.Name != "class")
-                    throw new ProtocolException(P.EBadRequest, "reset 인자는 seed·class" + (V04 ? "·input_mode" : "") + " 뿐 (항상 새 게임, 시작 지점 옵션 없음): '" + p.Name + "'");
+                if (p.Name != "type" && p.Name != "seed" && p.Name != "class" && p.Name != "options")
+                    throw new ProtocolException(P.EBadRequest, "reset 인자는 seed·class·options" + (V04 ? "·input_mode" : "") + " 뿐 (항상 새 게임, 시작 지점 옵션 없음): '" + p.Name + "'");
             }
+            ResetOptions ro;
+            try { ro = ResetOptions.Parse(msg["options"], _data); }
+            catch (FormatException ex) { throw new ProtocolException(P.EBadRequest, ex.Message); }
             _inputMode = mode;
 
             _runner = null;
-            _world = new WorldState(_data, seed, cls);
+            _world = new WorldState(_data, seed, cls, ro);
             _log.Clear();
             var w = _world;
             _world.OnEvent += ev => _log.Add(ev.Time, ev.Kind, ev.Payload);
-            var rl = new JObject { ["seed"] = seed, ["class"] = cls, ["omniscient"] = _opt.Omniscient };
+            var rl = new JObject { ["seed"] = seed, ["class"] = cls, ["options"] = ro.ToWire(), ["omniscient"] = _opt.Omniscient };
             if (V04) rl["input_mode"] = _inputMode;
             _log.Add(0, "reset", rl);
             _world.Emit("new_game", new JObject { ["seed"] = seed, ["class"] = cls });
@@ -854,6 +878,42 @@ namespace Qa.Play.Server
                 sb.Append(ch);
             }
             return sb.ToString();
+        }
+
+        // ------------------------------------------------------------------ snapshot / restore (4.11, 0.8.5)
+        // 전투 중 요청은 PumpCombat 이 busy 로 돌려준다 (여기까지 오지 않음). 저장·복원은 세계 시간 0초, 로그에 항목을 남기지 않는다.
+        void DoSnapshot()
+        {
+            RequireReset();
+            var s = new Saved
+            {
+                Id = "snap_" + (++_snapSeq), World = _world.Clone(), Log = _log.Save(), Loadout = _loadout, InputMode = _inputMode,
+            };
+            _snaps.AddLast(s);
+            while (_snaps.Count > PP.MaxSnapshots) _snaps.RemoveFirst();
+            Reply(new JObject { ["type"] = PP.SnapshotOk, ["id"] = s.Id });
+        }
+
+        void DoRestore(JObject msg)
+        {
+            RequireReset();
+            var id = msg["id"]?.Type == JTokenType.String ? (string)msg["id"] : null;
+            if (id == null) throw new ProtocolException(P.EBadRequest, "restore 에 'id'(문자열) 필요");
+            Saved s = null;
+            foreach (var x in _snaps) if (x.Id == id) s = x;
+            if (s == null) throw new ProtocolException(P.EBadRequest, "snapshot '" + id + "' 없음 (연결이 바뀌었거나 상한 " + PP.MaxSnapshots + "개를 넘어 지워짐)");
+            _runner = null;
+            _world = s.World.Clone();
+            _world.DrainEvents();   // 관찰 events 비움
+            _world.OnEvent += ev => _log.Add(ev.Time, ev.Kind, ev.Payload);
+            _log.Restore(s.Log);
+            _loadout = s.Loadout;
+            _inputMode = s.InputMode;
+            _isReset = true;
+            _scene.Sync(_world);
+            _onAction("restore " + id);
+            var w = _world;
+            Later(() => _semantic.Build(w, _obsSeq++));
         }
 
         void DoGetLog(JObject msg)

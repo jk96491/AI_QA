@@ -2,6 +2,16 @@
   "_note": "플레이 모드 월드 (-qaPlay 에서만 읽음). 좌표 = [x, z] (m). id 는 관찰·행동에 그대로 쓰이는 안정 id — 바꾸면 game_version 을 올린다",
   "start_zone": "village",
   "start_gold": 20,
+  "start_potions": 0,
+  "start_potion_item": "potion_small",
+  "start_jitter": 1.5,
+  "_layout_note": "0.8.5: reset.seed 가 jitter 를 준 엔티티의 위치를 ±jitter m (0.1 m 단위) 흔들고 마을 시작 위치를 ±start_jitter 흔든다. 장애물·지역 경계·적 어그로·다른 엔티티를 피하고 지역 시작점에서 도달 가능한 곳만 (못 찾으면 기준 위치). layouts = reset.options.layout 변형별 기준 위치 (a = 아래 pos). id·퀘스트는 그대로",
+  "layouts": {
+    "b": {"npc_elder": [-4, 7], "npc_merchant": [7, -9], "npc_guard": [30, -30],
+          "herb_01": [8, -27], "herb_02": [-6, -22], "herb_03": [12, -14], "herb_04": [-10, -6], "wolf_king": [-8, 24]},
+    "c": {"npc_elder": [9, 3], "npc_merchant": [-9, -12], "npc_guard": [27, -34],
+          "herb_01": [-17, -29], "herb_02": [18, -24], "herb_03": [-20, -8], "herb_04": [15, 2], "wolf_king": [10, 26]}
+  },
   "quick_slots": 2,
   "limits": {"max_action_seconds": 60.0, "interact_range": 2.5, "dt": 0.05, "move_speed": 5.0, "player_radius": 0.4, "cell_size": 0.5},
   "zones": [
@@ -10,9 +20,9 @@
       "bounds": [-40, -40, 40, 40],
       "spawn": [0, 0],
       "entities": [
-        {"id": "npc_elder", "role": "npc", "label": "촌장", "pos": [6, 6], "actions": ["talk"], "tags": ["quest_giver"], "dialogue": "npc_elder"},
-        {"id": "npc_merchant", "role": "npc", "label": "상인", "pos": [-5, -4], "actions": ["talk"], "tags": ["merchant"], "dialogue": "npc_merchant"},
-        {"id": "npc_guard", "role": "npc", "label": "경비병", "pos": [34, -22], "actions": ["talk"], "tags": ["guard"], "dialogue": "npc_guard"},
+        {"id": "npc_elder", "role": "npc", "label": "촌장", "pos": [6, 6], "jitter": 1.0, "actions": ["talk"], "tags": ["quest_giver"], "dialogue": "npc_elder"},
+        {"id": "npc_merchant", "role": "npc", "label": "상인", "pos": [-5, -4], "jitter": 1.5, "actions": ["talk"], "tags": ["merchant"], "dialogue": "npc_merchant"},
+        {"id": "npc_guard", "role": "npc", "label": "경비병", "pos": [34, -22], "jitter": 2.0, "actions": ["talk"], "tags": ["guard"], "dialogue": "npc_guard"},
         {"id": "chest_fenced", "role": "container", "label": "울타리 안 상자", "pos": [-15, 10], "radius": 0.5, "height": 0.8, "actions": ["open"], "tags": []},
         {"id": "portal_forest", "role": "portal", "label": "숲 입구", "pos": [0, 36], "radius": 1.5, "height": 0.2, "actions": ["enter"], "tags": ["exit"], "always_known": true, "to_zone": "forest"}
       ],
@@ -33,11 +43,11 @@
       "entities": [
         {"id": "portal_village", "role": "portal", "label": "마을로", "pos": [0, -38], "radius": 1.5, "height": 0.2, "actions": ["enter"], "tags": ["exit"], "always_known": true, "to_zone": "village"},
         {"id": "cp_forest", "role": "area", "label": "숲 체크포인트", "pos": [3, -33], "radius": 1.0, "height": 0.3, "actions": [], "tags": ["checkpoint"], "always_known": true},
-        {"id": "herb_01", "role": "item", "label": "약초", "pos": [-4, -26], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
-        {"id": "herb_02", "role": "item", "label": "약초", "pos": [5, -20], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
-        {"id": "herb_03", "role": "item", "label": "약초", "pos": [-7, -12], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
-        {"id": "herb_04", "role": "item", "label": "약초", "pos": [9, -4], "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
-        {"id": "wolf_king", "role": "enemy", "label": "늑대왕", "pos": [0, 20], "radius": 1.2, "height": 2.2, "actions": ["engage"], "tags": ["boss"],
+        {"id": "herb_01", "role": "item", "label": "약초", "pos": [-4, -26], "jitter": 3.0, "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "herb_02", "role": "item", "label": "약초", "pos": [5, -20], "jitter": 3.0, "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "herb_03", "role": "item", "label": "약초", "pos": [-7, -12], "jitter": 3.0, "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "herb_04", "role": "item", "label": "약초", "pos": [9, -4], "jitter": 3.0, "radius": 0.4, "height": 0.5, "actions": ["pickup"], "tags": ["herb"], "item": "herb"},
+        {"id": "wolf_king", "role": "enemy", "label": "늑대왕", "pos": [0, 20], "jitter": 2.0, "radius": 1.2, "height": 2.2, "actions": ["engage"], "tags": ["boss"],
          "scenario": "forest_wolf_king", "aggro_radius": 6.0, "checkpoint": "cp_forest", "xp": 40, "loot": [{"id": "wolf_fang", "count": 1}]}
       ],
       "obstacles": [

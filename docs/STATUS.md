@@ -1,7 +1,7 @@
-# 현재 상태 · 이어서 할 일 (2026-11-24 기준)
+# 현재 상태 · 이어서 할 일 (2026-11-26 기준)
 
-> 새 세션은 이 문서부터 읽는다 — **먼저 5장 맨 위 "다음 세션 할 일"**. 구조·규칙은 `../CLAUDE.md`, 게임 계약은 `PROTOCOL.md`(**v1.4**), **SDK 는 `SDK.md`**(0.2.0), 플레이 모드 계약은 `PLAY_PROTOCOL.md`(**v0.3**), 밴딧 설계 `BANDIT_IMPALA_DESIGN.md`, LLM 연결 `LLM_SETUP.md`.
-> 현재 Unity 빌드 **QaArena 0.8.3** (2026-11-24 20:34, `unity_game/REPORT_0.8.3.md`): 밸런스 **1.4 `initial_state` 반영**, 플레이 `play_description` 에 행동 설명·스키마·`pilot_guide`·`progress_keys` **게임 선언** (외부 스펙 없이 동작), 화면 H1·H3·H4. 밸런스 데이터 변경 없음 (T1 21/21) → 재학습 불필요. 플레이 0.4·0.3 hello 둘 다 받음.
+> 새 세션은 이 문서부터 읽는다 — **먼저 5장 맨 위 "다음 세션 할 일"**. 구조·규칙은 `../CLAUDE.md`, 게임 계약은 `PROTOCOL.md`(**v1.4**), **SDK 는 `SDK.md`**(0.5.0), 플레이 모드 계약은 `PLAY_PROTOCOL.md`(**v0.3**), 밴딧 설계 `BANDIT_IMPALA_DESIGN.md`, LLM 연결 `LLM_SETUP.md`.
+> 현재 Unity 빌드 **QaArena 0.8.5** (증류 평가: seed 배치·reset_options·snapshot, `unity_game/REPORT_0.8.5.md`), 이전 **QaArena 0.8.3** (2026-11-24 20:34, `unity_game/REPORT_0.8.3.md`): 밸런스 **1.4 `initial_state` 반영**, 플레이 `play_description` 에 행동 설명·스키마·`pilot_guide`·`progress_keys` **게임 선언** (외부 스펙 없이 동작), 화면 H1·H3·H4. 밸런스 데이터 변경 없음 (T1 21/21) → 재학습 불필요. 플레이 0.4·0.3 hello 둘 다 받음.
 
 ## 1. 지금 어디까지 왔나
 
@@ -99,7 +99,27 @@ Unity 쪽은 **별도 Claude Code 세션**(이름 `unity-game-1b`)이 맡고, �
 
 ## 5. 다음 세션 시작 방법
 
-### 다음 세션 할 일 (2026-11-25 밤 저장)
+### 다음 세션 할 일 (2026-11-27 — 학생 입력에 최근 행동 기록)
+
+**r8 기준 평가 (0.8.5 스위트, `reports/distill/base_r8.json`)**: seen 완주 0.60 / 진척 0.76, robust 0.70 / 0.84, unseen 0.12 / 0.42 (지도 b 0, 시작 자원 0 막힘, 궁수·마법사 약함). 포화·1판 경고 없음.
+**DAgger 5** (학생 r13, 규칙 교사 `play_agent/distill_rules.py` + 손 교정, 0.8.5 학습 seed 11~20·궁수 11~12): 10판 중 9판 5/5, 규칙 교정 49·손 교정 11 → v14 → **r14** (SFT+DAgger, history 0).
+**r13 진단 (DISTILL.md 8.5)**: 데이터가 사실상 지도 하나라 숫자·문장을 외웠고, 학생이 직전 행동 하나만 봐서 반복을 모른다.
+**사용자 결정 2026-11-27: 다시 학습해도 좋으니 학생에게 최근 행동 기록** → SDK 단계 형식 `history=K` (`recent_actions`, 기본 0), 모든 증류 명령 `--history`, `record.with_history` 로 옛 기록 변환. QaArena: 상황 접두 반복 읽기 (`distill_prep.repetition`), 상황 키 rep/alt, 규칙 R8 (반복 이어 가면 defer). 테스트 SDK 64 OK, 메인 138 OK.
+- 데이터 v15 = v14 와 같은 기록 history 4 형식 (train 961 / val 32). **r15 SFT 학습 중** (`distill_out/r15`, 베이스부터) → `qa-qwen1.5b-r15`.
+- 진행 중 평가: r13 (`reports/distill/eval_r13`), r14 (`reports/distill/eval_r14`) — 둘 다 history 0 비교용.
+- 다음: r15 평가 (`eval ... --history 4`) → compare base_r8 → DAgger 6 (history 4, 판 단위 라벨) → r16 → on-policy DPO (`pairs-onpolicy --history 4`) → RFT (`rft --history 4`). 커밋은 사용자 확인 후.
+
+### 다음 세션 할 일 (2026-11-26 갱신 — 증류 SFT 이후)
+
+**사용자 결정 2026-11-26: 증류는 DAgger 에서 멈추지 않고 DPO·RFT 까지 의미가 있어야 한다. SDK 는 게임 무관 역할만.** 이번에 한 것 (커밋 전):
+- **SDK 0.5.0** (`btqa_sdk/`, CHANGELOG): 평가 스위트 `btqa_play.suite`(seen·robust·unseen·train 묶음, 95% 구간, 포화·1판 경고, `compare` 채택 판정) · 교사 라벨 검토 `review`(relay `label_failed`·`repeat_no_progress` 경고, `step --unsure`, `review`/`resolve`, `dataset` 미해소 제외·`--situation-key`) · 분기 `branch.Brancher`(snapshot 또는 재생) · `btqa_distill pairs-onpolicy`(학생 샘플을 게임으로 채점한 쌍) · `dpo --nll-coef`·epoch 체크포인트 · `rft` 보정(r−평균, k3 KL, SFT 섞기, 스위트 train 판, 체크포인트). 플레이 0.3 선택 기능 `reset.options`(4.4.1)·`snapshot`/`restore`(4.11). 문서 `DISTILL_SDK.md` 5~7장. 테스트 SDK 60 OK, 메인 129 OK, 작은 무작위 모델로 DPO·on-policy·RFT GPU 스모크 OK.
+- QaArena 쪽: `play_agent/specs/qa_arena.eval.json`, `distill_prep.situation_key`, `distill_reward.prepare(loadout=)`, `check-play --only TD` (T-V·T-R·T-S), `docs/DISTILL.md` 8장 (원인표·교사 체크 항목·명령).
+- **측정**: 0.8.4 `check-play --only TD` → T-V **FAIL (seed 1~5 숲 배치 1가지)** = 지금까지의 "5판"은 사실상 1판. 라벨 상황 충돌 1곳 (늑대왕 멀리 보이는 숲: engage 12·finish 3·move_to 2).
+- **Unity 요청 `unity_game/DISTILL_EVAL_REQUEST.md`** (A seed → 배치 필수, B `reset_options` 권장, C snapshot 선택) — **0.8.5 반영 완료** (`unity_game/REPORT_0.8.5.md`): 학습 쪽 확인 check-play 127/127 (T4 시작 위치 기대값을 ±1.5 m 로 고침), `--only TD` 15/15 (seed 1~5 → 숲 배치 5가지), SDK Brancher 재생 = snapshot 같은 결과 (0.9s vs 2.4s). reset_options 이름 요청서 그대로 (`start_potions` 기본 0). `start_gold:0` 이면 q_tut_04 막힘 = 의도한 평가 조건.
+
+다음: ① (완료) ② r8 기준 평가 `btqa_play eval --suite ... --model qa-qwen1.5b-r8` → base.json (DISTILL.md 8.4) ③ on-policy DPO (r14) → compare ④ RFT (r15, train 묶음) → compare ⑤ 결과를 DISTILL.md 6장 표에. 두 레포 커밋 (사용자 확인 후).
+
+### (이전) 다음 세션 할 일 (2026-11-25 밤 저장)
 
 **오늘(2026-11-25) 끝난 상태**: 두 레포 모두 커밋·푸시 완료 (SDK `5ab5b04`, AI_QA `8ffd25b`). 돌고 있는 게임·학습·Ollama 모델 없음.
 - 증류 최종 = **r8 CPU** (`qa-qwen1.5b-r8`, 5/5). GPU 변형 `qa-qwen1.5b-r8-gpu` 는 1/5. DAgger 4 → **r12** (`qa-qwen1.5b-r12`, `-gpu`) GPU 3/5 — 상인 장면(상인 앞에서 인벤토리 열기 → 닫힌 창 '닫기' 반복)에서 막힘, **CPU 는 미평가**. 모델은 `distill_out/r*` 와 Ollama 에만 (커밋 금지).

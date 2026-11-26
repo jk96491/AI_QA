@@ -98,7 +98,7 @@ def _play_one(c: PlayClient, backend, lb: LoadoutBuilder, a: argparse.Namespace,
     """한 판: reset → LlmPilot. (run, log)."""
     from btqa_play.pilot import LlmPilot, PilotConfig   # anthropic SDK 는 AnthropicBackend 안에서만 import
     cfg = PilotConfig(max_actions=a.max_actions, max_calls=a.max_calls, goal=getattr(a, "goal", None),
-                      stateless=a.stateless or recorder is not None)
+                      stateless=a.stateless or recorder is not None, history=getattr(a, "history", 0))
     obs = c.reset(seed=seed, cls=a.cls)
     run = LlmPilot(c, responder=lb.responder(), config=cfg, backend=backend, spec=_spec_arg(a), recorder=recorder).run(obs)
     return run, c.get_log()
@@ -164,7 +164,8 @@ def cmd_batch(a: argparse.Namespace) -> int:
     c, desc = _connect(a, lb)
     with c:
         s = run_batch(c, backend, parse_seeds(a.seeds),
-                      PilotConfig(max_actions=a.max_actions, max_calls=a.max_calls, goal=a.goal, stateless=a.stateless),
+                      PilotConfig(max_actions=a.max_actions, max_calls=a.max_calls, goal=a.goal, stateless=a.stateless,
+                                  history=a.history),
                       spec=_spec_arg(a), responder=lb.responder(), cls=a.cls, out_dir=out, record=a.record,
                       llm_config={k: v for k, v in llm_cfg.items() if not k.startswith("_")},
                       loadout=[e.source for e in lb.entries.values()], spec_file=_spec_arg(a),
@@ -180,13 +181,15 @@ def cmd_relay(a: argparse.Namespace) -> int:
     from play_agent.relay import PilotRelay
     from btqa_play.__main__ import student_backend
     PilotRelay(a.game, a.loadout, seed=a.seed, cls=a.cls, port=a.port, out=a.out, spec=_spec_arg(a),
-               stateless=a.stateless, record=a.record, student=student_backend(a.student, a.student_url)).serve()
+               stateless=a.stateless, record=a.record, student=student_backend(a.student, a.student_url),
+               options=json.loads(a.reset_options) if a.reset_options else None, history=a.history).serve()
     return 0
 
 
 def cmd_step(a: argparse.Namespace) -> int:
     from play_agent.relay import relay_step
-    print(relay_step(a.tool, json.loads(a.input or "{}"), port=a.port, thought=a.think, kind=a.kind, execute=a.execute))
+    print(relay_step(a.tool, json.loads(a.input or "{}"), port=a.port, thought=a.think, kind=a.kind, execute=a.execute,
+                     uncertain=a.unsure))
     return 0
 
 
@@ -214,7 +217,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--game2", help="T7 교차 비교용 두 번째 플레이 인스턴스")
     p.add_argument("--exe", help="이 실행 파일로 헤드리스 인스턴스 4개를 띄워서 검사")
     p.add_argument("--loadout", nargs="*", help="T9: reports/<run> 또는 params.json/policy.json")
-    p.add_argument("--only", nargs="*", choices=["T2", "T3", "T4", "T56", "TN", "T78", "T9"])
+    p.add_argument("--only", nargs="*", choices=["T2", "T3", "T4", "T56", "TN", "T78", "T9", "TD"])
     p.set_defaults(fn=cmd_check)
 
     p = sub.add_parser("loadout", help="학습 결과 → set_loadout 미리 보기")
@@ -240,6 +243,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--tool-mode", choices=["native", "json"], help="openai: json = 출력 JSON 을 스키마로 강제 (작은 로컬 모델)")
     p.add_argument("--stateless", action="store_true", help="단계마다 새 대화 (지금 관찰 + 직전 행동 결과만)")
     p.add_argument("--record", help="단계 기록 JSONL (stateless 를 켠다)")
+    p.add_argument("--history", type=int, default=0, help="학생 입력에 그 이전 행동 K개 (recent_actions) — 학습한 K 와 같게 (r15~: 4)")
     p.add_argument("--goal")
     p.set_defaults(fn=cmd_play)
 
@@ -257,6 +261,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--tool-mode", choices=["native", "json"])
     p.add_argument("--stateless", action="store_true")
     p.add_argument("--record", action="store_true", help="판별 단계 기록을 batch 폴더 steps.jsonl 에 (stateless 를 켠다)")
+    p.add_argument("--history", type=int, default=0, help="학생 입력에 그 이전 행동 K개 (recent_actions) — 학습한 K 와 같게 (r15~: 4)")
     p.add_argument("--goal")
     p.add_argument("--max-actions", type=int, default=150)
     p.add_argument("--max-calls", type=int, default=250)
@@ -274,8 +279,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--spec", default=str(QA_ARENA_SPEC), help=SPEC_HELP)
     p.add_argument("--stateless", action="store_true", help="단계 형식: 응답 = 학생과 같은 다음 단계 입력")
     p.add_argument("--record", help="교사 데이터 JSONL (stateless 를 켠다) — 증류용")
+    p.add_argument("--history", type=int, default=0, help="학생 입력에 그 이전 행동 K개 (recent_actions) — 학습한 K 와 같게 (r15~: 4)")
     p.add_argument("--student", help="교정(DAgger) 모드: 학생 Ollama 모델 — view 에 제안, step --execute student 로 학생 행동 실행")
     p.add_argument("--student-url", default="http://localhost:11434/v1")
+    p.add_argument("--reset-options", help="reset.options JSON (게임이 reset_options 로 선언한 것만, PLAY_PROTOCOL 4.4.1)")
     p.set_defaults(fn=cmd_relay)
 
     p = sub.add_parser("tools", help="게임 선언 → LLM 도구·시스템 프롬프트 미리 보기 + 선언 검사 (SDK)")
@@ -291,6 +298,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--kind", default="thought", choices=["thought", "plan", "finding"])
     p.add_argument("--port", type=int, default=7899)
     p.add_argument("--execute", choices=["student"])
+    p.add_argument("--unsure", action="store_true", help="확신 없는 라벨 → 기록 uncertain (생각 문장에 쓰지 말 것)")
     p.set_defaults(fn=cmd_step)
 
     a = ap.parse_args(argv)

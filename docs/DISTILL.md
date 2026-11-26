@@ -13,7 +13,8 @@
 | 2 | 교사 데이터: relay `--record` 로 튜토리얼 7판 | **완료** (`distill_data/raw/teacher.jsonl`) |
 | 2b | 게임 쪽: 시야 밖 퀘스트 대상 위치 (`unity_game/OFFSCREEN_TARGET_REQUEST.md`) | Unity 요청 (사용자 전달) |
 | 3 | 학습 환경 `venv_distill` (Python 3.12 + CUDA torch, GPU) + llama.cpp → `python -m btqa_distill train/export` | **완료** |
-| 4 | 교정 데이터(DAgger 1~4) + 재학습 + 비교표 (6·7장) | **완료** — 최종 r8 (CPU 5/5) |
+| 4 | 교정 데이터(DAgger 1~4) + 재학습 + 비교표 (6·7장) | **완료** — 기준 모델 r8 (CPU 5/5) |
+| 5 | **SFT 이후 다시: DPO·RFT 가 의미 있게** (사용자 결정 2026-11-26 — DAgger 에서 멈추지 않는다) — 평가 스위트·라벨 검토·on-policy 쌍·RFT 보정 (SDK 0.5.0), QaArena 부록 (8장) | **도구 완료** (2026-11-26), Unity 0.8.5 반영 확인 (TD 15/15), 학습 실행 전 |
 
 **모델 파일(원본·증류)은 절대 커밋하지 않는다** — 두 레포 `.gitignore`·`tests/test_no_model_files.py`·pre-commit hook. 학습 출력은 `distill_out/`.
 
@@ -69,15 +70,12 @@ venv_distill\Scripts\python.exe -m btqa_distill export --base Qwen/Qwen2.5-1.5B-
 # 평가 (CPU·GPU 따로 — 같은 가중치라도 결과가 다를 수 있다, 6장 r8 GPU)
 venv\Scripts\python.exe -m play_agent batch --game 127.0.0.1:7801 --seeds 1-5 --loadout reports/20261123-230419 ^
     --llm openai --model qa-qwen1.5b-r13 --tool-mode json --stateless --record --max-actions 70 --out reports/distill
-# DPO 쌍 · DPO · RFT (6장: 이 규모에서는 모두 후퇴)
-venv\Scripts\python.exe -m btqa_play pairs reports/distill/dagger*.jsonl --out distill_out/data/pairs.jsonl --prep play_agent.distill_prep:prep_pair
-venv_distill\Scripts\python.exe -m btqa_distill dpo --base distill_out/r8/merged --pairs distill_out/data/pairs.jsonl --out distill_out/r9
-venv_distill\Scripts\python.exe -m btqa_distill rft --base distill_out/r8/merged --game 127.0.0.1:7801 --scratch 127.0.0.1:7802 --seeds 11 ^
-    --reward play_agent.distill_reward:reward --prepare play_agent.distill_reward:prepare --spec play_agent/specs/qa_arena.play.json --out distill_out/r10
+# SFT 이후 (DPO·RFT) — 8장 절차. 예전 방식(교정 기록 쌍, 한 seed RFT)은 6장 r9~r11 = 모두 후퇴
 ```
 
+
 - `dataset --correction-weight` 는 **교정 단계 기록 자체**(학생 제안 ≠ 정답, 또는 `edited`)를 N 번 넣는다. r3~r12 는 이전의 손 스크립트로 만들었는데, 그건 교정 단계와 **입력 글이 같은 다른 샘플**까지 늘렸다 (v11: 손 스크립트 550 ↔ SDK 442, val 은 같음). 그 회차 재현은 `distill_data/datasets/` 사본으로.
-- 교사가 학생 제안을 잘못 승인했으면 기록에서 그 줄의 `target`·`target_text` 를 고치고 `"edited": "<이유>"` 를 단다 (교정으로 센다).
+- 교사가 학생 제안을 잘못 승인했으면 `python -m btqa_play resolve <기록> --run <판> --step N --note "<이유>" --tool T --input '{..}'` (→ `edited`, `original_target` 보존, 교정으로 센다). relay 는 정답으로 기록한 행동이 실패하거나 진척 없이 반복되면 응답에 `warning` 을 싣고 `needs_review` 를 남긴다 — 해소 전에는 `dataset` 이 뺀다 (`review` 로 목록).
 
 교사 규칙: **응답의 `step_input`(학생이 받는 입력 그대로)만 보고** 판단한다. 대화 기억으로 정한 행동은 학생이 배울 수 없다 — 기록의 `grounding` 이 그런 샘플을 표시한다 (입력에 없는 id, 근거 없는 좌표).
 
@@ -167,3 +165,94 @@ venv_distill\Scripts\python.exe -m btqa_distill rft --base distill_out/r8/merged
 - 학습 쪽: 3060 12GB 에서 전체 logits 가 GPU 메모리를 넘겨 시스템 RAM 으로 넘침 → 답 구간만 logits (`logits_to_keep`) 로 10스텝 1330s→226s.
 
 **재생**: `venv\Scripts\python.exe run/run_play_local.py` (PyCharm 16, `MODEL = "qa-qwen1.5b-r8"`). 녹화 `run/run_record_play.py` (PyCharm 17). 데이터 백업 `distill_data/` (커밋 대상), 모델은 `distill_out/` 와 Ollama 에만 (커밋 금지).
+
+## 8. SFT 이후 다시: DPO·RFT 를 의미 있게 (2026-11-26 계획, QaArena 부록)
+
+> 사용자 결정 2026-11-26: **증류는 DAgger 에서 멈추지 않고 DPO·RFT 까지 의미가 있어야 한다.** SDK 는 게임 무관 절차·도구만 (SDK 0.5.0, `btqa_sdk/docs/DISTILL_SDK.md` 5~7장), 이 장은 QaArena 가 채우는 빈칸.
+
+### 8.1 첫 시도(r9~r11)가 후퇴한 원인 — 알고리즘보다 측정·데이터
+
+| 원인 | 증거 | 대응 (SDK / 이 저장소) |
+|---|---|---|
+| 평가 포화 | r8 이 seed 1~5 를 이미 5/5 — 오를 곳 없음 | 평가 스위트 `robust`(T=0.7 × 2)·`unseen`(궁수·마법사·먼 seed·시작 조건) 묶음, 채택 규칙 (`play_agent/specs/qa_arena.eval.json`) |
+| seed 가 판을 안 바꿈 | `check-play --only TD` T-V (0.8.4): seed 1~5 숲 배치 **1가지**. 교사 기록 39단계 중 33단계 같은 입력 | Unity 요청 A (seed → 배치) · B (`reset.options`) — `unity_game/DISTILL_EVAL_REQUEST.md`. 스위트가 "시작 상태 같음·궤적 같음" 경고 |
+| DPO 쌍 18개, chosen = 교사 글 | r9 강·약 모두 1/5 | on-policy 쌍 (`btqa_distill pairs-onpolicy`: 학생 샘플 K개를 게임 보상으로 채점) + chosen NLL (`dpo --nll-coef 0.2`) |
+| RFT 한 판 신호를 std 로 키움 | r10 8회 갱신, r11 붕괴 (0/5) | 이점 r − 평균, 탐욕 출력 그룹 밖, k3 KL, SFT NLL 섞기, 학습 판 10+ (스위트 `train` 묶음), 판마다 체크포인트 |
+| 교사 라벨 오류 | 승인 실수 13/519 (실패로 드러난 것만 — **하한**) | relay `label_failed`·`repeat_no_progress` 자동 표시, `--unsure`, `review`/`resolve`, `dataset` 이 미해소 제외 |
+| 같은 상황 다른 정답 | `--situation-key` 로 다시 세면 1곳: 늑대왕이 멀리 보이는 숲 — engage 12 · finish 3 · move_to 2 (finish 는 궁수·마법사 2연패 판) | 교사 규칙 "같은 상황엔 앞선 정답" (SDK 5장), 이 장면은 다음 데이터셋에서 finish 3줄 검토 |
+
+### 8.2 교사 체크 항목 (QaArena — SDK 5장 2-④ 에 들어가는 것)
+
+승인 전에 SDK 공통 항목(인자 완전·id 가 입력에 있음·진척)에 더해:
+1. **거리·사거리** — 대상 `distance` 가 상호작용 거리(약 2.5, 전처리 `NEAR` 3.0) 밖이면 먼저 `move_to` 가 정답.
+2. **열린 창(modal)** — 창이 열려 있으면 그 창의 버튼이 먼저다 (`blocked_by_modal`). 목표 글과 같은 글의 버튼(`ui.hud.inventory` 등)이 있으면 그것.
+3. **진행도** — `progress` 를 숫자 그대로 읽는다 (0/3 을 완료로 착각하지 않는다). `ready` 면 반납 대상(다른 지역이면 그 지역 입구)으로.
+4. **교사(이 세션)는 판 전체를 기억한다 — 학생은 단계 입력만 본다** (2026-11-27). 판 전체는 원인 단계를 찾는 데만 쓰고, 정답은 그 단계 입력(history 4 면 `recent_actions` 포함)만으로 정당화될 때만 붙인다. 입력만으로 못 정하면 `--unsure` 또는 뺀다. 규칙 교사는 처음부터 입력만 본다.
+5. 생각 문장 예: `"약초 1/3 — 아직 남았다, 가까운 herb_02 로"` (입력의 글·수치를 옮겨 쓴다). `"상황: …"` 접두는 쓰지 않는다 (`distill_prep` 이 붙인다).
+
+**규칙 교사 (사용자 결정 2026-11-27 A — 범용 모델이 아니다)** `play_agent/distill_rules.py:correct`: R0 목표 대상이 손 닿는 곳인데 다른 곳으로 → 그 대상과 상호작용, R1 사거리 밖 interact → move_to, R2 창(상점 제외)에서 같은 버튼 반복 → 닫기, R3 퀘스트가 남았는데 finish → 보이는 목표 대상(적이면 engage)·목표 글의 HUD 버튼 (지고 물약이 없으면 포기 허용), R5 빈 move_to, R6 화면에 없는 버튼, R7 창이 열렸는데 이동 → 목표 글의 창 버튼·닫기, 판단 불가 → defer(교사). 기존 교사 기록 519줄에 발동 0회 (오탐 없음, 테스트 `tests/play/test_distill_hooks.py`).
+
+### 8.3 QaArena 가 SDK 에 넘기는 것
+
+| 무엇 | 위치 |
+|---|---|
+| 평가 스위트 | `play_agent/specs/qa_arena.eval.json` — seen 1-5 / robust T0.7×2 / unseen 궁수·마법사 1-3·seed 101-105·`start_gold`/`start_potions`/`layout` (Unity B 뒤) / train 11-20·궁수 11-12. 채택: seen 후퇴 없음 + robust·unseen 진척 +0.1 |
+| 보상 | `play_agent.distill_reward:reward` (진척 사건 +1, 목표 대상 +0.5, 대상이 새로 보임 +0.3, 창이 바뀐 클릭 +0.2, 실패 −1). 해킹 기록은 그 파일 주석 |
+| 판 준비 | `play_agent.distill_reward:prepare` (`loadout` 인자 — 스위트 조건의 `prepare`) |
+| 규칙 교사 | `play_agent.distill_rules:correct` (`btqa_play auto --rules`) |
+| 상황 키 | `play_agent.distill_prep:situation_key` (지역·첫 미완료 목표·대상 거리 구간·손 닿는 엔티티·창·직전 실패) |
+| 전처리 | `play_agent.distill_prep:prep_sample` / `prep_pair` (상황 읽기 접두) |
+| 게임 쪽 검사 | `python -m play_agent check-play --exe unity_game/Build/QaArena.exe --only TD` (T-V seed 변화 · T-R reset.options · T-S snapshot) |
+
+### 8.4 한 바퀴 (명령)
+
+게임 2개: 7801 (평가·본 판), 7802 (분기·채점). 3060 12GB: 1.5B LoRA 학습 + 샘플링은 GPU, 평가는 CPU Ollama(Q4).
+
+```bash
+# 0. 게임 쪽 확인 (Unity A·B 반영 빌드)
+venv\Scripts\python.exe -m play_agent check-play --exe unity_game/Build/QaArena.exe --only TD
+# 1. 기준 모델(r8) 평가 → base.json (경고·건너뜀을 먼저 본다 — 포화·1판이면 이득을 주장하지 않는다)
+venv\Scripts\python.exe -m btqa_play eval --game 127.0.0.1:7801 --suite play_agent/specs/qa_arena.eval.json ^
+    --prepare play_agent.distill_reward:prepare --model qa-qwen1.5b-r8 --out reports/distill
+# 2. (선택) 라벨 정리: 미해소 검토 → resolve, 상황 충돌 확인
+venv\Scripts\python.exe -m btqa_play review reports/distill/teacher.jsonl reports/distill/dagger*.jsonl
+venv\Scripts\python.exe -m btqa_play dataset reports/distill/teacher.jsonl reports/distill/dagger*.jsonl --out distill_out/data/v13 ^
+    --val-runs 215705-s5 --correction-weight 3 --prep play_agent.distill_prep:prep_sample --situation-key play_agent.distill_prep:situation_key
+# 3. DPO: 학생을 train 묶음(seed 11-20·궁수 11-12)으로 돌린 상태에서 on-policy 쌍 (평가 묶음 기록은 쓰지 않는다 — 누수) → DPO(+NLL) → 평가 → 판정
+venv\Scripts\python.exe -m btqa_play eval --game 127.0.0.1:7801 --suite play_agent/specs/qa_arena.eval.json --groups train ^
+    --prepare play_agent.distill_reward:prepare --model <SFT+DAgger 모델> --out reports/distill/train_states
+venv_distill\Scripts\python.exe -m btqa_distill pairs-onpolicy --base distill_out/r8/merged --game 127.0.0.1:7802 ^
+    --records reports/distill/train_states/eval-<시각>/steps.jsonl --reward play_agent.distill_reward:reward ^
+    --prepare play_agent.distill_reward:prepare --prepare-args "{\"loadout\":\"reports/20261123-230419\"}" --k 6 --margin 0.5 --include-target ^
+    --out distill_out/data/pairs_onpolicy_v1.jsonl
+venv_distill\Scripts\python.exe -m btqa_distill dpo --base distill_out/r8/merged --pairs distill_out/data/pairs_onpolicy_v1.jsonl --nll-coef 0.2 --out distill_out/r14
+venv_distill\Scripts\python.exe -m btqa_distill export --base distill_out/r8/merged --adapter distill_out/r14/adapter --out-dir distill_out/r14 ^
+    --llama-cpp distill/llama.cpp --name qa-qwen1.5b-r14 --template-from qwen2.5:1.5b
+venv\Scripts\python.exe -m btqa_play eval --game 127.0.0.1:7801 --suite play_agent/specs/qa_arena.eval.json ^
+    --prepare play_agent.distill_reward:prepare --model qa-qwen1.5b-r14 --out reports/distill
+venv\Scripts\python.exe -m btqa_play compare reports/distill/eval-<base>/summary.json reports/distill/eval-<r14>/summary.json
+# 4. RFT: 스위트 train 묶음(seed 11-20 + 궁수 11-12), SFT 섞기 → 체크포인트별 내보내기·평가 → 채택 판정
+venv_distill\Scripts\python.exe -m btqa_distill rft --base distill_out/r8/merged --game 127.0.0.1:7801 --scratch 127.0.0.1:7802 ^
+    --suite play_agent/specs/qa_arena.eval.json --group train --reward play_agent.distill_reward:reward ^
+    --prepare play_agent.distill_reward:prepare --sft distill_out/data/v13/train.jsonl --k 4 --max-steps 70 --out distill_out/r15
+```
+
+- `export --base` 는 SFT merged(`distill_out/r8/merged`) 위에 DPO·RFT 어댑터를 합친다 (DPO·RFT 의 기준 = r8).
+- 채택 못 하면 그것도 결과 — 6장 표에 회차·스위트 결과·`compare` 판정을 남긴다.
+- **r15~ 는 모든 명령에 `--history 4`** (dataset·eval·relay·play·rft·pairs-onpolicy, `run/run_play_local.py` `HISTORY`). K 가 다르면 학생이 학습과 다른 글자를 받는다.
+
+### 8.5 r13 진단과 결정: 학생에게 최근 행동 기록 (2026-11-27)
+
+0.8.5 스위트에서 r13(SFT, history 0)이 seen 0/5 완주로 r8(3/5)보다도 낮았다. 단계 기록을 보면:
+
+| 장면 | 학습 데이터 | 평가 |
+|---|---|---|
+| 약초 2/3, herb_03 이 2.3 m | 2.1 m 에서 "가까움 → pickup" 7줄 | 상황 접두에 "멂 2.3"·"herb_01,herb_02 이 지역에 없음" (입력과 다름) → 포털 ↔ 약초 왕복 |
+| 인벤토리 창 + 목표 "상인에게 물약 구매" | 같은 장면 14줄 모두 "닫기" | "등록" 20번 이상 |
+
+1. **데이터가 사실상 지도 하나** (0.8.4 는 seed 가 배치를 바꾸지 않음) → 1.5B 가 규칙이 아니라 숫자·문장을 외웠다. 거리 2.1 → 2.3 처럼 조금만 달라도 상황 접두부터 틀린다. 대응: 0.8.5 배치가 다른 판의 DAgger (DAgger 5 = seed 11~20).
+2. **학생이 직전 행동 하나만 본다** → A·B 번갈아, 같은 행동 N번째를 알 수 없고, 교사는 반복에 빠진 적이 없어 빠져나오는 예시도 없다. 대응 (사용자 결정 2026-11-27 "다시 학습해도 좋으니 2번"): SDK 단계 형식 `history=4` (`recent_actions`), 상황 접두에 **반복 읽기** (`distill_prep.repetition`: "같은 행동 N번째 (…)", "번갈아 반복 (A ↔ B)"), 상황 키에 rep/alt, 규칙 교사 **R8** (위 규칙이 못 잡은 반복을 이어 가면 defer → 교사).
+
+순서: v15 (v14 와 같은 기록, history 4 형식, 961줄) → r15 SFT (베이스부터) → 평가 → DAgger 6 (history 4, R8 defer 는 교사가 판 단위로 라벨) → r16 → DPO → RFT.
+- 시간: 스위트 1회 ≈ 판 30개 × (70행동 × ~8s) ≈ 4~5시간 (CPU). 먼저 `--groups seen robust` 로 줄여 본다.
+

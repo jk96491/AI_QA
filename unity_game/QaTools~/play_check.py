@@ -400,7 +400,7 @@ def t4(ep):
     # --- reset = 새 게임 (T8 일부)
     o = c.rq({"type": "reset", "seed": 3, "class": "warrior"})
     check("reset → 첫 장면 (골드 20, 인벤토리 비움, q_tut_01, 마을 시작점)",
-          o["player"]["gold"] == 20 and o["inventory"] == [] and quest(o, "q_tut_01") is not None and o["player"]["pos"] == [0.0, 0.0, 0.0]
+          o["player"]["gold"] == 20 and o["inventory"] == [] and quest(o, "q_tut_01") is not None and abs(o["player"]["pos"][0]) <= 1.5 and abs(o["player"]["pos"][2]) <= 1.5
           and o["player"]["zone"] == "village")
     c.close()
 

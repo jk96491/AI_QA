@@ -18,6 +18,7 @@ namespace Qa.Play.World
         // 적 (role enemy): 조우 = 밸런스 시나리오 하나 (PLAY_PROTOCOL 4.2 scenarios, 로드아웃 키 (class, scenario))
         public string Scenario;
         public double AggroRadius;
+        public double Jitter;       // (0.8.5) reset.seed 가 대기 위치를 ±Jitter m 흔든다 (0 = 고정)
         public string Checkpoint;   // 패배 시 부활 위치 엔티티 id
         public int Xp;
         public readonly List<KeyValuePair<string, int>> Loot = new List<KeyValuePair<string, int>>();
@@ -109,7 +110,13 @@ namespace Qa.Play.World
     {
         public string StartZone;
         public int StartGold;
+        public int StartPotions;              // (0.8.5) 시작 인벤토리 작은 물약 수 (reset_options.start_potions 기본값)
+        public string StartPotionItem = "potion_small";
+        public double StartJitter;            // (0.8.5) 시작 위치를 seed 로 ±m 흔든다
         public int QuickSlots = 2;
+        /// <summary>(0.8.5) 배치 변형: 이름 → (엔티티 id → 기준 위치 [x,z]). "a" = 엔티티 pos 그대로. 순서 = 선언 순서 (a 가 처음).</summary>
+        public readonly List<string> LayoutNames = new List<string> { "a" };
+        public readonly Dictionary<string, Dictionary<string, double[]>> Layouts = new Dictionary<string, Dictionary<string, double[]>>(StringComparer.Ordinal);
         public readonly PlayLimits Limits = new PlayLimits();
         public readonly List<ZoneDef> Zones = new List<ZoneDef>();
         public readonly Dictionary<string, DialogueDef> Dialogues = new Dictionary<string, DialogueDef>(StringComparer.Ordinal);
@@ -152,6 +159,9 @@ namespace Qa.Play.World
             d.StartZone = (string)w["start_zone"];
             d.StartGold = (int?)w["start_gold"] ?? 0;
             d.QuickSlots = (int?)w["quick_slots"] ?? 2;
+            d.StartPotions = (int?)w["start_potions"] ?? 0;
+            d.StartPotionItem = (string)w["start_potion_item"] ?? d.StartPotionItem;
+            d.StartJitter = (double?)w["start_jitter"] ?? 0;
             if (w["limits"] is JObject lim)
             {
                 d.Limits.MaxActionSeconds = (double?)lim["max_action_seconds"] ?? d.Limits.MaxActionSeconds;
@@ -183,6 +193,7 @@ namespace Qa.Play.World
                         Dialogue = (string)et["dialogue"], Item = (string)et["item"], ToZone = (string)et["to_zone"],
                         Scenario = (string)et["scenario"], AggroRadius = (double?)et["aggro_radius"] ?? 0,
                         Checkpoint = (string)et["checkpoint"], Xp = (int?)et["xp"] ?? 0,
+                        Jitter = (double?)et["jitter"] ?? 0,
                     };
                     foreach (var lt in (JArray)et["loot"] ?? new JArray())
                         e.Loot.Add(new KeyValuePair<string, int>((string)lt["id"], (int?)lt["count"] ?? 1));
@@ -203,6 +214,20 @@ namespace Qa.Play.World
                 d.Zones.Add(z);
             }
             if (d.Zone(d.StartZone) == null) errs.Add("start_zone '" + d.StartZone + "' 없음");
+            d.Layouts["a"] = new Dictionary<string, double[]>(StringComparer.Ordinal);
+            foreach (var lp in (JObject)w["layouts"] ?? new JObject())
+            {
+                if (lp.Key.StartsWith("_")) continue;
+                if (d.Layouts.ContainsKey(lp.Key)) { errs.Add("layout '" + lp.Key + "' 중복 (a 는 기본 배치)"); continue; }
+                var m = new Dictionary<string, double[]>(StringComparer.Ordinal);
+                foreach (var ep in (JObject)lp.Value)
+                {
+                    if (!ids.Contains(ep.Key)) errs.Add("layout " + lp.Key + ": 엔티티 '" + ep.Key + "' 없음");
+                    m[ep.Key] = new[] { (double)ep.Value[0], (double)ep.Value[1] };
+                }
+                d.Layouts[lp.Key] = m;
+                d.LayoutNames.Add(lp.Key);
+            }
 
             // ---- 아이템·상점
             if (itemsJson != null)
@@ -320,6 +345,7 @@ namespace Qa.Play.World
                 foreach (var ri in q.RewardItems) if (d.Item(ri.Key) == null) errs.Add(q.Id + ": 보상 item '" + ri.Key + "' 없음");
             }
 
+            if (d.StartPotions > 0 && d.Item(d.StartPotionItem) == null) errs.Add("start_potion_item '" + d.StartPotionItem + "' 없음");
             if (errs.Count > 0) throw new FormatException("플레이 데이터 오류: " + string.Join("; ", errs));
             return d;
         }
