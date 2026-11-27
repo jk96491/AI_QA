@@ -89,7 +89,7 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
         return {"defer": "창 %s 이 열렸는데 이동 — 맞는 버튼 없음" % modal}
 
     # R6 화면에 없는 버튼 (seed 14: 대화가 끝났는데 ui.dialog.choice.0)
-    if tool == "ui_click" and inp.get("ui_id") and inp["ui_id"] not in {u.get("id") for u in screen.get("ui") or []}:
+    if tool == "ui_click" and str(inp.get("ui_id") or "") not in {u.get("id") for u in screen.get("ui") or []}:   # DAgger 6b: 빈 ui_id ""
         b = _objective_button(o, screen) if not modal else None
         if b:
             return {"tool": "ui_click", "input": {"ui_id": b["id"]},
@@ -105,7 +105,7 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
         ex = _only_exit(o, ents, tg)
         if ex:
             return dict(ex, rule="R6_missing_button")
-        return {"defer": "화면에 없는 버튼 %s" % inp["ui_id"]}
+        return {"defer": "화면에 없는 버튼 %s" % inp.get("ui_id")}
 
     # R9 없는 대상 (r15: 대상 "herb_01,herb_02,herb_03" 목록 문자열로 move_to/interact → unknown_target 교대)
     tgt = inp.get("target")
