@@ -117,6 +117,27 @@ class RuleTeacherTest(unittest.TestCase):
         self.assertIn("defer", correct(_rule_input(MERCHANT_FAR, ui=HUD, quests=herbs), bad))
         self.assertIsNone(correct(_rule_input(forest, ui=HUD, quests=herbs), {"tool": "move_to", "input": {"target": "herb_02"}}))
 
+    def test_only_exit_when_goal_is_elsewhere(self):
+        herbs = [{"id": "q_tut_02", "state": "active", "objectives": [
+            {"text": "약초 3개 채집", "progress": [0, 3], "hint_targets": ["herb_01", "herb_02"]}]}]
+        village = [("npc_elder", 2.1, "npc", ["talk"]), ("portal_forest", 32.0, "portal", ["enter"])]
+        fx = correct(_rule_input(village, ui=HUD, quests=herbs), {"tool": "move_to", "input": {"target": None, "pos": None}})
+        self.assertEqual((fx["input"]["target"], fx["rule"]), ("portal_forest", "R5_only_exit"))
+        two = village + [("portal_cave", 20.0, "portal", ["enter"])]
+        self.assertIn("defer", correct(_rule_input(two, ui=HUD, quests=herbs), {"tool": "move_to", "input": {"target": None}}))
+
+    def test_r10_finish_only_after_repeated_talk_with_no_quests(self):
+        guard = [("npc_guard", 2.2, "npc", ["talk"])]
+        talk = {"tool": "interact", "input": {"target": "npc_guard", "verb": "talk"}, "status": "done"}
+        choice = {"tool": "ui_click", "input": {"ui_id": "ui.dialog.choice.0"}, "status": "done"}
+        d = json.loads(_rule_input(guard, ui=HUD, last=choice, quests=[]))
+        d["recent_actions"] = [talk, choice, choice, talk]
+        fx = correct(json.dumps(d, ensure_ascii=False), {"tool": "ui_click", "input": {"ui_id": "ui.dialog.choice.1"}})
+        self.assertEqual((fx["tool"], fx["rule"]), ("finish", "R10_done_finish"))
+        d["recent_actions"] = []   # 판 시작: 퀘스트 없음이 정상
+        d["last_action"] = None
+        self.assertIsNone(correct(json.dumps(d, ensure_ascii=False), {"tool": "interact", "input": {"target": "npc_guard", "verb": "talk"}}))
+
     def test_r2_repeat_in_inventory_closes_but_shop_repeat_is_fine(self):
         inv = [("ui.inventory.assign", "퀵슬롯 1에 등록"), ("ui.inventory.close", "닫기")]
         last = {"tool": "ui_click", "input": {"ui_id": "ui.inventory.assign"}, "status": "done"}

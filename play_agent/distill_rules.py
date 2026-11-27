@@ -12,9 +12,10 @@ SDK `btqa_play auto --rules play_agent.distill_rules:correct` 가 단계마다 �
   R3 이른 포기: 진행 중 퀘스트가 있는데 finish → 보이는 목표 대상에게 (적이면 engage)      (robust: 늑대왕이 보이자 finish)
       단, 직전 전투에서 졌고 물약이 없으면 포기(finish)도 맞다 — 규칙이 막지 않는다
       보이는 대상이 없으면: 목표 글에 들어 있는 HUD 버튼(예 '인벤토리') → 그 버튼, 아니면 defer (seed 11: 물약 등록 중 finish)
-  R5 빈 이동: move_to 의 target·pos 가 모두 null → 보이는 목표 대상, 없으면 defer (seed 11: bad_request)
+  R5 빈 이동: move_to 의 target·pos 가 모두 null → 보이는 목표 대상, 목표가 이 지역에 없고 출구가 하나면 그 출구, 아니면 defer (seed 11: bad_request)
   R6 없는 버튼: 화면 ui 에 없는 ui_id 클릭 → 목표 글의 HUD 버튼, 아니면 defer (seed 14)
   R7 창 막힘: 창이 열렸는데 move_to/interact → 목표 글과 같은 글의 창 버튼, 없으면 닫기 (seed 14: 상점에서 이동)
+  R10 끝난 판: (history 만) 진행 중 퀘스트 없음 + 창 없음 + 최근 기록에 같은 NPC 대화 2번 → finish (DAgger 6)
   R9 없는 대상: move_to/interact 대상이 화면에 없고 목록 문자열('a,b')이거나 이 지역에 없는 목표 대상 → 보이는 가장 가까운 목표 대상, 없으면 defer (r15)
   R4 같은 실패 반복: 직전 행동이 failed 인데 같은 행동 → R1 로 풀리면 그것, 아니면 교사에게 (None + 표시 없음 → relay 경고가 잡는다)
 """
@@ -52,6 +53,15 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
     screen = o.get("screen") or {}
     modal = screen.get("modal")
     tool, inp = proposal.get("tool"), dict(proposal.get("input") or {})
+
+    # R10 끝난 판 (DAgger 6 seed 11·12: 퀘스트를 모두 마친 뒤 경비 대화↔선택지 교대) — history 형식만:
+    #     진행 중 퀘스트가 없고 창이 없는데, 최근 기록에 같은 NPC 대화가 2번 이상 → finish (판 시작에는 기록이 없다)
+    if "recent_actions" in d and not o.get("quests") and not modal and tool != "finish":
+        talks = [json.dumps(x.get("input") or {}, sort_keys=True) for x in list(d.get("recent_actions") or []) + [la]
+                 if x and x.get("tool") == "interact" and (x.get("input") or {}).get("verb") == "talk"]
+        if talks and max(talks.count(t) for t in talks) >= 2:
+            return {"tool": "finish", "input": {"success": True, "summary": "진행 중 퀘스트 없음"},
+                    "thought": "진행 중 퀘스트가 없고 같은 대화만 반복된다 — 끝낸다", "rule": "R10_done_finish"}
 
     # R0 목표 대상이 손 닿는 곳에 있는데 다른 곳으로 (seed 12: 약초 2/3, herb_03 2.3 m 옆에서 마을 입구로)
     tg = _targets(o)
@@ -92,6 +102,9 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
                             "thought": "%s 이(가) 바로 옆이다 — %s" % (e.get("label") or t, e["actions"][0]), "rule": "R6_missing_button"}
                 return {"tool": "move_to", "input": {"target": t, "pos": None},
                         "thought": "%s 이(가) 멂 %.1f — 다가간다" % (e.get("label") or t, e.get("distance") or 0), "rule": "R6_missing_button"}
+        ex = _only_exit(o, ents, tg)
+        if ex:
+            return dict(ex, rule="R6_missing_button")
         return {"defer": "화면에 없는 버튼 %s" % inp["ui_id"]}
 
     # R9 없는 대상 (r15: 대상 "herb_01,herb_02,herb_03" 목록 문자열로 move_to/interact → unknown_target 교대)
@@ -106,6 +119,9 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
             return {"tool": "move_to", "input": {"target": e["id"], "pos": None},
                     "thought": "대상은 하나씩 — 가장 가까운 %s (멂 %.1f) 에게 간다" % (e.get("label") or e["id"], e.get("distance") or 0),
                     "rule": "R9_unknown_target"}
+        ex = _only_exit(o, ents, tg)
+        if ex:
+            return dict(ex, rule="R9_unknown_target")
         return {"defer": "대상 %s 이 이 지역에 없음 — 어디로 갈지 교사가 본다" % tgt}
 
     # R1 사거리
@@ -154,6 +170,9 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
         if b:
             return {"tool": "ui_click", "input": {"ui_id": b["id"]},
                     "thought": "목표 글의 '%s' — 그 버튼을 연다" % b["text"], "rule": "R5_empty_move"}
+        ex = _only_exit(o, ents, tg)
+        if ex:
+            return ex
         return {"defer": "move_to 인자가 비었고 보이는 목표 대상이 없음"}
 
     # R8 반복 감시 (history 형식만, 2026-11-27 r13: 약초↔포털 왕복·등록 버튼 20번) — 위 규칙이 못 잡은 반복을 이어 가면 교사에게
@@ -166,6 +185,18 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
         if len(names) >= 3 and names[-1] != names[-2] and names[-3] == names[-1] and me == names[-2]:
             return {"defer": "두 행동을 번갈아 반복 중 — 교사가 본다"}
     return None
+
+
+def _only_exit(o: Mapping[str, Any], ents: Mapping[str, Any], tg: List[str]) -> Optional[Dict[str, Any]]:
+    """목표 대상이 이 지역에 하나도 없고 창이 없으며, 보이는 출구(portal)가 하나뿐 → 그 출구로 (DAgger 6: 마을에서 약초 퀘스트)."""
+    if not tg or any(t in ents for t in tg) or (o.get("screen") or {}).get("modal"):
+        return None
+    exits = [e for e in ents.values() if e.get("role") == "portal"]
+    if len(exits) != 1:
+        return None
+    e = exits[0]
+    return {"tool": "move_to", "input": {"target": e["id"], "pos": None},
+            "thought": "목표 대상이 이 지역에 없다 — 출구 %s 로 간다" % (e.get("label") or e["id"]), "rule": "R5_only_exit"}
 
 
 def _objective_button(o: Mapping[str, Any], screen: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
