@@ -107,6 +107,16 @@ class RuleTeacherTest(unittest.TestCase):
         fx = correct(_rule_input(MERCHANT_NEAR, ui=HUD), {"tool": "ui_click", "input": {"ui_id": "ui.hud.inventory"}})
         self.assertEqual((fx["tool"], fx["input"]), ("interact", {"target": "npc_merchant", "verb": "talk"}))
 
+    def test_r9_list_target_becomes_nearest_goal_or_defers(self):
+        herbs = [{"id": "q_tut_02", "state": "active", "objectives": [
+            {"text": "약초 3개 채집", "progress": [0, 3], "hint_targets": ["herb_01", "herb_02", "herb_03"]}]}]
+        forest = [("herb_02", 6.0, "item", ["pickup"]), ("herb_01", 9.0, "item", ["pickup"])]
+        bad = {"tool": "move_to", "input": {"target": "herb_01,herb_02,herb_03"}}
+        fx = correct(_rule_input(forest, ui=HUD, quests=herbs), bad)
+        self.assertEqual((fx["tool"], fx["input"]["target"], fx["rule"]), ("move_to", "herb_02", "R9_unknown_target"))
+        self.assertIn("defer", correct(_rule_input(MERCHANT_FAR, ui=HUD, quests=herbs), bad))
+        self.assertIsNone(correct(_rule_input(forest, ui=HUD, quests=herbs), {"tool": "move_to", "input": {"target": "herb_02"}}))
+
     def test_r2_repeat_in_inventory_closes_but_shop_repeat_is_fine(self):
         inv = [("ui.inventory.assign", "퀵슬롯 1에 등록"), ("ui.inventory.close", "닫기")]
         last = {"tool": "ui_click", "input": {"ui_id": "ui.inventory.assign"}, "status": "done"}

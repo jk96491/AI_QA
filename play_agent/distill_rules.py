@@ -15,6 +15,7 @@ SDK `btqa_play auto --rules play_agent.distill_rules:correct` 가 단계마다 �
   R5 빈 이동: move_to 의 target·pos 가 모두 null → 보이는 목표 대상, 없으면 defer (seed 11: bad_request)
   R6 없는 버튼: 화면 ui 에 없는 ui_id 클릭 → 목표 글의 HUD 버튼, 아니면 defer (seed 14)
   R7 창 막힘: 창이 열렸는데 move_to/interact → 목표 글과 같은 글의 창 버튼, 없으면 닫기 (seed 14: 상점에서 이동)
+  R9 없는 대상: move_to/interact 대상이 화면에 없고 목록 문자열('a,b')이거나 이 지역에 없는 목표 대상 → 보이는 가장 가까운 목표 대상, 없으면 defer (r15)
   R4 같은 실패 반복: 직전 행동이 failed 인데 같은 행동 → R1 로 풀리면 그것, 아니면 교사에게 (None + 표시 없음 → relay 경고가 잡는다)
 """
 from __future__ import annotations
@@ -92,6 +93,20 @@ def correct(user_text: str, proposal: Mapping[str, Any]) -> Optional[Dict[str, A
                 return {"tool": "move_to", "input": {"target": t, "pos": None},
                         "thought": "%s 이(가) 멂 %.1f — 다가간다" % (e.get("label") or t, e.get("distance") or 0), "rule": "R6_missing_button"}
         return {"defer": "화면에 없는 버튼 %s" % inp["ui_id"]}
+
+    # R9 없는 대상 (r15: 대상 "herb_01,herb_02,herb_03" 목록 문자열로 move_to/interact → unknown_target 교대)
+    tgt = inp.get("target")
+    if tool in ("move_to", "interact") and isinstance(tgt, str) and tgt and tgt not in ents             and ("," in tgt or "/" in tgt or tgt in tg):
+        vis = sorted((ents[t] for t in tg if t in ents), key=lambda e: e.get("distance") or 99)
+        if vis:
+            e = vis[0]
+            if (e.get("distance") or 99) <= REACH and e.get("actions"):
+                return {"tool": "interact", "input": {"target": e["id"], "verb": e["actions"][0]},
+                        "thought": "대상은 하나씩 — 가장 가까운 %s 이(가) 바로 옆이다" % (e.get("label") or e["id"]), "rule": "R9_unknown_target"}
+            return {"tool": "move_to", "input": {"target": e["id"], "pos": None},
+                    "thought": "대상은 하나씩 — 가장 가까운 %s (멂 %.1f) 에게 간다" % (e.get("label") or e["id"], e.get("distance") or 0),
+                    "rule": "R9_unknown_target"}
+        return {"defer": "대상 %s 이 이 지역에 없음 — 어디로 갈지 교사가 본다" % tgt}
 
     # R1 사거리
     if tool == "interact" and inp.get("target") in ents:

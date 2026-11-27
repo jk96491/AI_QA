@@ -84,7 +84,8 @@ def situation(user_text: str) -> str:
             seen = [t for t in tg if t in visible]
             # r5 진단: 멀리 있는 상인에게 move_to 없이 talk → out_of_range 반복 → 거리(입력 entities[].distance)로 가까움/멂
             seen_txt = ["%s(%s)" % (t, _near(dist.get(t))) if dist.get(t) is not None else t for t in seen[:3]]
-            parts.append("대상 %s 보임" % ",".join(seen_txt) if seen else "대상 %s 이 지역에 없음" % ",".join(tg[:2]))
+            # r15 진단: "herb_01,herb_02" 를 대상 id 하나로 옮겨 적음 (unknown_target 교대) → id 를 " / " 로 띄워 하나씩 읽게 한다
+            parts.append("대상 %s 보임" % " / ".join(seen_txt) if seen else "대상 %s 이 지역에 없음" % " / ".join(tg[:2]))
         elif objs:   # r3·r4 진단: 대상 표시 없는 목표("인벤토리에서 물약 등록")에서 버튼 대신 대화 반복 → 목표 글과 같은 글의 버튼
             btn = [u for u in buttons if u.get("text") and str(u["text"]) in str(objs[0].get("text") or "")]
             parts.append("목표 글 '%s' = 버튼 %s" % (btn[0]["text"], btn[0]["id"]) if btn else "대상 표시 없음")
