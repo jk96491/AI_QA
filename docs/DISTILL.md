@@ -263,6 +263,7 @@ venv_distill\Scripts\python.exe -m btqa_distill rft --base distill_out/r8/merged
 | 2026-11-27 | r14 seen+robust 다시 (`reports/distill/eval_r14_seen`, 완전한 요약) | seen 완주 **1.00** / 진척 1.00 (r8 0.60/0.76), robust **0.90** / 0.92 (r8 0.70/0.84). robust 실패 1판 (seed 2 r0 T=0.7, 퀘스트 1/5 행동 14). unseen 은 측정 중 |
 | 2026-11-27 | r14 unseen (`reports/distill/eval_r14_unseen`) + `compare` vs r8 (합친 요약 `reports/distill/r14.json`) | unseen 완주 **0.53** / 진척 **0.83** (r8 0.12/0.42). 조건별: seed_far 5/5·layout_b 3/3 완주, 궁수 1/3 (4/5 에서 멈춤 2), 마법사 0/3 (1/5·4/5·4/5), poor_start 0/3 (3판 모두 퀘스트 3/5 에서 같은 궤적). **compare: 채택** (seen +0.24, robust +0.08, unseen +0.41, 회귀 없음) → r14 가 새 기준 |
 | 2026-11-27 | 장면 점검: r14 (SFT+DAgger 5, history 0) 에 r8·r13 이 인벤토리→상인 장면에서 막힌 단계 101개를 그대로 질문 (게임 없이) | **닫기 94/101** (전환 직후 39/39, 2번째 32/37, 4번째 23/25), 나머지는 물약 칸 선택. r8·r13 은 같은 입력에서 '등록' 반복 → 이 장면은 기록(history)이 아니라 **DAgger 5 데이터**(0.8.5 다른 배치 + 규칙 R2)가 고쳤다 |
+| 2026-11-27 | 장면 점검: r15 (SFT v15, history 4) 같은 장면, recent_actions 는 r8·r13 판의 실제 앞 행동 4개 (115단계) | **닫기 66/115** (전환 직후 41/43, 2번째 15/42, 4번째 10/30). 나머지: 등록 반복 15, 이미 열린 인벤토리를 다시 '연다' 18, 물약 칸 13. 생각은 "등록 완료"인데 행동이 반복인 경우가 많다. 반복이 이미 기록에 있는 단계에서 r14 (history 0) 보다 나쁘다 → 기록 속 반복을 따라 하는 경향(copycat) 의심. 다만 이 단계들은 r15 자신이 아니라 r8·r13 이 만든 반복 → 판정은 r15 실제 평가로 |
 
 순서 (8.5): v15 (v14 와 같은 기록, history 4 형식, 961줄) → r15 SFT (베이스부터) → 평가 → DAgger 6 (history 4, R8 defer 는 교사가 판 단위로 라벨) → r16 → DPO → RFT.
 - 시간: 스위트 1회 ≈ 판 30개 × (70행동 × ~8s) ≈ 4~5시간 (CPU). 먼저 `--groups seen robust` 로 줄여 본다.
